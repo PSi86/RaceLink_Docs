@@ -1,0 +1,164 @@
+site_name: RaceLink Documentation
+site_description: Wireless LED-control system for drone racing — operator, developer and protocol reference.
+site_url: https://docs.racelink.dev/
+site_author: PSi86
+copyright: >
+  Copyright &copy; 2026 PSi86 —
+  released under the
+  <a href="licenses/">MIT licence</a>
+
+repo_url: https://github.com/PSi86/RaceLink_Docs
+repo_name: PSi86/RaceLink_Docs
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.tracking
+    - search.suggest
+    - search.highlight
+    - search.share
+    - content.action.edit
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme)"
+      scheme: default
+      primary: deep orange
+      accent: amber
+      toggle:
+        icon: material/brightness-auto
+        name: Match OS — click to override
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep orange
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep orange
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+  font:
+    text: Roboto
+    code: JetBrains Mono
+
+extra_css:
+  - assets/racelink-theme.css
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - footnotes
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets:
+      check_paths: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.keys
+  - pymdownx.tilde
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.smartsymbols
+
+plugins:
+  - search
+
+hooks:
+  # Rewrite relative source-code refs (../racelink/..., ../../wled00/...,
+  # etc.) to absolute GitHub URLs at build time. The source markdown
+  # stays component-repo portable; the published site gets clickable
+  # source links and `mkdocs build --strict` no longer flags them as
+  # missing internal targets.
+  - hooks/source_code_links.py
+
+extra:
+  social:
+    - icon: material/web
+      link: https://racelink.dev
+      name: RaceLink project home
+    - icon: fontawesome/brands/github
+      link: https://github.com/PSi86
+      name: PSi86 on GitHub
+
+nav:
+  - Home: index.md
+
+  - User Guide:
+      - Operator guide: RaceLink_Host/operator-guide.md
+      - Host WebUI guide: RaceLink_Host/webui-guide.md
+      - Standalone install (Windows + Linux): RaceLink_Host/standalone-install.md
+      - Gateway operator setup: RaceLink_Gateway/operator-setup.md
+      - WLED node operator setup: RaceLink_WLED/operator-setup.md
+      - RotorHazard plugin (operator): RaceLink_RH_Plugin/operator-setup.md
+      - Troubleshooting: troubleshooting.md
+      - Glossary: glossary.md
+
+  - Concepts:
+      - concepts/index.md
+      - Opcodes (OPC_CONTROL / OPC_OFFSET / OPC_SYNC): concepts/opcodes.md
+      - Deterministic WLED effects: concepts/deterministic-effects.md
+
+  - Reference:
+      - reference/index.md
+      - Wire protocol: reference/wire-protocol.md
+      - Web API: reference/web-api.md
+      - SSE channels & state scopes: reference/sse-channels.md
+      - Scene file format: reference/scene-format.md
+
+  - Developer Guide:
+      - Architecture (Host): RaceLink_Host/architecture.md
+      - Developer guide (Host): RaceLink_Host/developer-guide.md
+      - UI conventions (Frontend): RaceLink_Host/ui-conventions.md
+      - Contributing: contributing.md
+      - Versioning & compatibility: versioning.md
+
+      - Component packages:
+          - RaceLink_Host (package): RaceLink_Host/README.md
+          - RaceLink_Gateway (firmware): RaceLink_Gateway/README.md
+          - RaceLink_WLED (firmware): RaceLink_WLED/README.md
+          - RaceLink_RH_Plugin (adapter): RaceLink_RH_Plugin/README.md
+
+      - RotorHazard plugin internals:
+          - Manifest dependency format: RaceLink_RH_Plugin/manifest-dependency-format.md
+          - ADR-0001 — Manifest dependency: RaceLink_RH_Plugin/adr-0001-manifest-dependency.md
+          - Release playbook: RaceLink_RH_Plugin/release-playbook.md
+
+      - Project history & meta:
+          - Changelog: changelog.md
+          - Licences: licenses.md
+          - Documentation sources: sources.md

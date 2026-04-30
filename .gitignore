@@ -1,0 +1,47 @@
+# MkDocs build output
+/site/
+
+# Python virtual environment / pip caches
+.venv/
+__pycache__/
+*.pyc
+
+# Local AI / agent memory and per-developer notes — never committed.
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+
+# Local editor / workspace files — these reflect the maintainer's
+# personal setup and should not be shared.
+*.code-workspace
+
+# Environment files (secrets, API keys, local overrides) and stray logs.
+.env
+.env.*
+*.log
+
+# Plan archive (Claude-Code-internal engineering ledger; private).
+# Stray dumps under any top-level plans/ folder.
+plans/
+
+# Repo-internal working material — kept locally as a reference but
+# never committed. Includes audit history, contributor workflow notes,
+# component-repo CLAUDE.md/README.md templates, the source-snapshot of
+# the original consolidation, and the skeleton-archive. Some of these
+# files contain workstation-absolute paths and should never reach
+# GitHub.
+/_meta/
+
+# Strictly private documentation — never published to GitHub.
+# Lives alongside the public docs so it can be edited together
+# but is excluded from the repo entirely. See _private/README.md.
+/_private/
+
+# OS / IDE noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
