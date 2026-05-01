@@ -103,6 +103,24 @@ plan renamed several legacy "effect_*" symbols that actually
 referred to presets; check
 [`glossary.md`](glossary.md) before introducing new symbols.
 
+### Broadcast / target-picker terminology
+
+The unified target-picker vocabulary (across both the host
+WebUI and the RH-plugin) is **Broadcast** / **Groups** /
+**Device**. Operator-facing strings should match — use
+**"All Devices (Broadcast)"** for the broadcast option label,
+not the older "All WLED Nodes" or "All groups" wordings.
+
+The internal JSON discriminator on persisted scenes is
+`target.kind ∈ {broadcast, groups, device}`. The legacy values
+`scope` (offset_group children) and singular `group` are
+migrated on read; they should never appear in new code or new
+tests. The word **scope** stays in use for SSE channel scopes
+(`DEVICES`, `GROUPS`, `PRESETS`, …) — that is its only
+remaining meaning. See
+[`reference/broadcast-ruleset.md`](reference/broadcast-ruleset.md)
+for the wire-level rules.
+
 ## PR description template
 
 A good PR description includes:

@@ -87,9 +87,10 @@ This table is the at-a-glance index; open the file for the contract.
 | `host_wifi_service` | NetworkManager `nmcli` wrapper for OTA | OTA workflow |
 | `pending_requests` | `PendingRequestRegistry` for unicast match-and-set on the RX path | `gateway_service` |
 | `scenes_service` | Scene store (CRUD + canonical validator + legacy migration shim) | Web, scene runner |
-| `scene_runner_service` | Sequential dispatcher for scenes, including offset_group container expansion | Web `/api/scenes/<key>/run`, RotorHazard quickset |
-| `scene_cost_estimator` | Predicted wire cost (packets, bytes, airtime) for a scene before it runs | Web `/api/scenes/<key>/estimate`, web editor |
-| `offset_dispatch_optimizer` | Wire-path planner for `offset_group` actions (formula vs explicit vs broadcast+overrides) | Scene runner, cost estimator |
+| `scene_runner_service` | Sequential dispatcher for scenes — every per-kind handler funnels through `dispatch_planner.plan_action_dispatch` and a small `_dispatch_op` adapter that maps symbolic sender names to `control_service` / `sync_service` / `controller` methods | Web `/api/scenes/<key>/run`, RotorHazard quickset |
+| `scene_cost_estimator` | Predicted wire cost (packets, bytes, airtime) for a scene before it runs — iterates the same plan the runner consumes and sums `body_bytes` | Web `/api/scenes/<key>/estimate`, web editor |
+| `dispatch_planner` | **Single source of truth for "what packets would the runner emit"** — pure / side-effect-free function `plan_action_dispatch(action, …) → ActionDispatchPlan{ops: List[WireOp], …}`. Both the runner (which dispatches each op) and the cost estimator (which sums byte counts) consume the same plan. Parity is enforced by `tests/test_dispatch_parity.py` | Scene runner, cost estimator |
+| `offset_dispatch_optimizer` | Wire-path strategy picker for the `offset_group` Phase-1 OPC_OFFSET sequence (formula vs explicit vs broadcast+overrides). Called from the dispatch planner; emits `WireOp` records with `sender="send_offset"` | Dispatch planner |
 
 `controller.py` is the historical "RaceLink_Host" class that all
 services attach to. New work generally adds a service module rather

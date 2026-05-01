@@ -41,8 +41,15 @@ The header carries the master pill (gateway state), refresh
 button, and a link to the Scenes page. The toolbar groups the
 top-level actions: **Discover**, **Get Status**, **Re-sync group
 config**, plus the bulk-move controls. The left sidebar lists
-groups (with member counts); the right pane holds the device
-table, one row per device. Per-device controls hang off each row:
+groups; each row shows an **`M / N`** count — devices currently
+online out of total devices in the group. Hover the count for a
+tooltip that defines "online" (replied to the last status query
+or sent an unsolicited `IDENTIFY_REPLY` recently). When any
+device in a group receives data, the group's row briefly flashes
+— the same visual language the device-table rows use, so the
+sidebar feels live alongside the table. The right pane holds the
+device table, one row per device. Per-device controls hang off
+each row:
 
 * **Specials button** — opens a per-device-type configuration modal
   (per-capability options, e.g. startblock display brightness).
@@ -61,6 +68,16 @@ the action list. Each action row carries a drag-handle for
 reordering, a kind-dropdown, target-picker, params widget, flags
 overrides, and a per-action cost badge. The total cost is shown at
 the bottom of the editor, plus the last-run measured wall-clock.
+
+The target-picker is the same three-radio component everywhere
+it appears (top-level effects, `Offset Group` containers,
+`Offset Group` children): **Broadcast** / **Groups** /
+**Device**. Container scope hides Device. Selecting every known
+group manually shows a hint that the save will collapse to
+**Broadcast** — see the
+[operator-guide section](operator-guide.md#the-target-picker-broadcast--groups--device)
+and the [Broadcast Ruleset](../reference/broadcast-ruleset.md)
+for the wire-level rules.
 
 For scene format on disk, see
 [`../../reference/scene-format.md`](../reference/scene-format.md).

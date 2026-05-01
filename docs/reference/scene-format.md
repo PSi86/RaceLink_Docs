@@ -175,7 +175,7 @@ offset, producing wave / cascade effects.
 ```json
 {
   "kind": "offset_group",
-  "groups": "all",
+  "target": { "kind": "broadcast" },
   "offset": { "mode": "linear", "base_ms": 0, "step_ms": 200 },
   "children": [
     { "kind": "rl_preset", "preset_key": "RL:breathe_blue", ... }
@@ -185,9 +185,15 @@ offset, producing wave / cascade effects.
 
 | Field | Type | Notes |
 |---|---|---|
-| `groups` | `"all"` or list of int | Which groups participate. |
+| `target` | object | Unified target (see [Target discriminator](#target-discriminator)). Container scope only allows `broadcast` or `groups` — `device` is invalid because the offset formula is per-group. |
 | `offset` | object | `{mode, ...}`. See "Offset modes" below. |
 | `children` | list of actions | Up to 16 children. Children inherit the parent's offset semantics; their `flags_override.offset_mode` is decided by the parent's `mode` (see *flags_override semantics* below). |
+
+> **Legacy shape.** Pre-2026-05 scenes used a standalone
+> `groups` field (`"all"` or `[<int>, ...]`). The loader migrates
+> it to the unified `target` shape on read; saved scenes always
+> use `target`. See [Target discriminator](#target-discriminator)
+> for the migration table.
 
 #### Offset modes
 
@@ -204,28 +210,61 @@ offset, producing wave / cascade effects.
 
 ## Target discriminator
 
-The `target` object follows a discriminated-union pattern:
+Every action that touches a device target uses the same
+discriminated-union shape — top-level effects, `offset_group`
+containers, and `offset_group` children all read from the same
+schema. See [Broadcast Ruleset](broadcast-ruleset.md) for the
+end-to-end rules per OpCode.
 
 ```json
-// All devices in a group:
-"target": { "kind": "group", "group_id": 3 }
+// Every device on the wire (recv3=FFFFFF, groupId=255):
+"target": { "kind": "broadcast" }
+
+// One or more specific groups:
+"target": { "kind": "groups", "value": [3] }
+"target": { "kind": "groups", "value": [1, 3, 5] }
 
 // Single device by MAC:
-"target": { "kind": "device", "mac": "AA:BB:CC:DD:EE:FF" }
-
-// Broadcast:
-"target": { "kind": "broadcast" }
+"target": { "kind": "device", "value": "AABBCCDDEEFF" }
 ```
 
 | `kind` | Required fields | Notes |
 |---|---|---|
-| `group` | `group_id` (1–254) | Group `0` ("Unconfigured") is forbidden as a scene target. |
-| `device` | `mac` (12-char hex with colons) | Host normalises to upper-case. |
-| `broadcast` | — | `groupId=255`. Some action kinds (e.g. `wled_preset`) accept broadcast; ACK-bearing kinds expect a unicast or group target instead. |
+| `broadcast` | — | `recv3=FFFFFF`, body `groupId=255`. Every device acts. |
+| `groups` | `value` — non-empty list of int group ids in 1..254 | Each id is `recv3=FFFFFF` + body `groupId=id` (group-scoped broadcast at the wire). Length-1 is the common case ("send to one group"). Lists are sorted and de-duplicated on save. |
+| `device` | `value` — 12-char MAC hex (no colons) | Host normalises to upper-case. The wire emission keeps the device's stored `groupId` from the Host repository — `groupId=255` is **not** used as a fallback (see [Single-device pinned rule](broadcast-ruleset.md#single-device-pinned-rule)). |
 
-`sync` and `delay` actions have no `target`. `offset_group` does
-not have a top-level `target` either; each child action carries
-its own.
+Group `0` ("Unconfigured") is forbidden as a productive scene
+target — the editor's group dropdowns hide it.
+
+`sync` and `delay` actions have no `target`. The `offset_group`
+container has a `target` of its own (broadcast / groups only —
+no `device`); each child action also carries its own target.
+
+### Save-time canonicalisation
+
+Two rewrites run when a scene is saved through the host's API:
+
+1. **Selected-equals-known-all → broadcast.** When a `groups`
+   target's `value` covers every currently-known group id, the
+   shape is rewritten to `{ "kind": "broadcast" }`. This makes
+   the runtime / cost-estimator pair unambiguous (both pick
+   optimizer Strategy A) and removes the visual ambiguity the
+   editor had pre-unification, where "All groups" checkbox vs.
+   "every group manually checked" produced different cost
+   estimates for the same wire path. The editor surfaces a
+   "(All groups selected → will save as Broadcast.)" hint when
+   this collapse is about to fire.
+
+2. **Legacy migrations.** Pre-unification shapes are migrated
+   on load (the canonical output is always the unified shape):
+
+   | Legacy in JSON | Canonical shape |
+   |---|---|
+   | `target.kind == "scope"` (offset_group child) | `{ "kind": "broadcast" }` |
+   | `target.kind == "group", value: <int>` | `{ "kind": "groups", "value": [<int>] }` |
+   | `offset_group.groups == "all"` | `target: { "kind": "broadcast" }` (the standalone `groups` field is removed) |
+   | `offset_group.groups == [<int>, ...]` | `target: { "kind": "groups", "value": [<int>, ...] }` |
 
 ## `flags_override` semantics
 
@@ -270,14 +309,21 @@ The `SceneService.create_or_update` validator enforces:
 8. Numeric fields in `wled_control` (mode, speed, brightness, …)
    are in their byte ranges (0–255 each).
 
-## Migration shim
+## Migration shims
 
-Older scenes used a flat `groups_offset` action kind that bundled
-both the offset configuration and the effect parameters. The
-loader recognises this shape and rewrites it on read into the
-current `offset_group` container. The shim is permanent until at
-least 2026-Q3 and produces a one-line
-log entry on each rewrite.
+Two on-load migrations keep older persisted scenes loadable:
+
+* **Pre-hierarchy `groups_offset` action.** A flat
+  `groups_offset` kind bundled the offset configuration and the
+  effect parameters in one action. The loader rewrites it into
+  the current `offset_group` container with a single child.
+* **Pre-unification target shapes.** `target.kind == "scope"` →
+  `"broadcast"`; singular `target.kind == "group"` → `"groups"`
+  length-1 list; `offset_group.groups` → `target` field. See
+  the table in [Save-time canonicalisation](#save-time-canonicalisation).
+
+Both shims log one line per rewritten action. Removal target:
+2026-Q3.
 
 ## Example scene
 
@@ -292,7 +338,7 @@ log entry on each rewrite.
       "actions": [
         {
           "kind": "offset_group",
-          "groups": "all",
+          "target": { "kind": "broadcast" },
           "offset": { "mode": "linear", "base_ms": 0, "step_ms": 200 },
           "children": [
             {

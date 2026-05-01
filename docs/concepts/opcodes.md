@@ -177,27 +177,38 @@ firmware clamps the final per-device value to `[0, 65535]` ms.
 For the same operator-visible scene, the runner picks between two
 strategies depending on the participating groups:
 
-**Strategy A — broadcast formula.** When the operator selects "All
-groups" + a formula mode (linear / vshape / modulo), the host sends
-**one** `OPC_OFFSET` to the broadcast address (`groupId = 255`)
-with the formula. Every node evaluates the formula against its own
-`groupId` and stores the result. One packet configures the whole
-fleet.
+**Strategy A — broadcast formula.** When the operator picks
+**Broadcast** (or selects every currently-known group, which the
+save-time canonicaliser collapses to broadcast — see
+[scene-format.md](../reference/scene-format.md#save-time-canonicalisation))
+together with a formula mode (linear / vshape / modulo), the host
+sends **one** `OPC_OFFSET` to the broadcast address
+(`groupId = 255`) with the formula. Every node evaluates the
+formula against its own `groupId` and stores the result. One
+packet configures the whole fleet.
 
 **Strategy B — per-group explicit.** When the operator selects a
-sparse list of groups, or chose `explicit` mode, the host evaluates
-the formula host-side and sends **N** `OPC_OFFSET` packets — one
-per group, in `explicit` mode with the resolved `offset_ms`. The
-host pays the airtime in exchange for per-group precision.
+sparse list of groups (`target.kind == "groups"` with a strict
+subset of the known set), or chose `explicit` mode, the host
+evaluates the formula host-side and sends **N** `OPC_OFFSET`
+packets — one per group, in `explicit` mode with the resolved
+`offset_ms`. The host pays the airtime in exchange for per-group
+precision.
+
+**Strategy C — broadcast formula + sparse NONE overrides.**
+When the participants are a *majority* of the known fleet and
+the mode is a formula, the host sends one broadcast formula
+packet plus one `OPC_OFFSET(NONE)` per non-participating group
+to deactivate them. The optimizer picks this over Strategy B
+when `1 + |non-participants| < |participants|`. See
+[Broadcast Ruleset](../reference/broadcast-ruleset.md) for the
+end-to-end wire rules.
 
 The runner makes this decision automatically. The cost-estimator
 badge in the scene editor shows what wire path will be taken
 ("≈ 3 pkts" vs "≈ 12 pkts"). Operators don't pick — they author
-the intent ("all groups, linear from base 0 with step 200 ms"), and
-the runner picks the shortest wire encoding.
-
-A third strategy ("broadcast formula + sparse overrides for
-non-participants") is on the table but not yet shipped.
+the intent (Broadcast / Groups / per-group explicit), and the
+runner picks the shortest wire encoding.
 
 ### The strict acceptance gate
 

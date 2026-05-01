@@ -136,6 +136,7 @@ nav:
   - Reference:
       - reference/index.md
       - Wire protocol: reference/wire-protocol.md
+      - Broadcast ruleset: reference/broadcast-ruleset.md
       - Web API: reference/web-api.md
       - SSE channels & state scopes: reference/sse-channels.md
       - Scene file format: reference/scene-format.md
@@ -159,6 +160,7 @@ nav:
           - Release playbook: RaceLink_RH_Plugin/release-playbook.md
 
       - Project history & meta:
+          - Roadmap: roadmap.md
           - Changelog: changelog.md
           - Licences: licenses.md
           - Documentation sources: sources.md

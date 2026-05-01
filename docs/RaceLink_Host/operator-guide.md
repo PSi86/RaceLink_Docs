@@ -184,12 +184,14 @@ in the sidebar to start a new draft.
 * Click **Add action** to append actions in order.
 * Each action picks a **kind** (Apply RL Preset, Apply WLED
   Preset, Sync, Delay, Offset Group, etc.) and configures its
-  target (group / device) and parameters.
+  target and parameters via the [unified target
+  picker](#the-target-picker-broadcast--groups--device).
 * The **Offset Group** action is the powerful one: drop child
   actions inside it (`Apply RL Preset`, etc.), pick which groups
-  participate, and configure the per-group offset (linear,
-  v-shape, modulo). The cost badge updates to reflect the wire-
-  optimisation strategy the runner will pick at run time.
+  participate (via the same target picker), and configure the
+  per-group offset (linear, v-shape, modulo). The cost badge
+  updates to reflect the wire-optimisation strategy the runner
+  will pick at run time.
 * The cost badge under each action shows packets / bytes /
   airtime; the scene-total badge in the header shows the sum.
   The tooltip explains the LoRa parameters used for the airtime
@@ -199,6 +201,54 @@ in the sidebar to start a new draft.
   tab — but the unsaved-changes warning fires on
   refresh / close / nav-away if you have edits.
 
+### The target picker: Broadcast / Groups / Device { #the-target-picker-broadcast--groups--device }
+
+Every action that targets devices uses the same picker — three
+radios with the matching value picker below:
+
+* **Broadcast** — every device on the wire receives the packet.
+  No value picker; one packet hits the whole fleet (`recv3=FFFFFF`,
+  `groupId=255`). The cheapest wire path; pick this when the
+  effect is meant for everyone.
+* **Groups** — pick one or more groups via a search dialog.
+  Length-1 is the common case (a single group); longer lists
+  fan out one packet per group at the wire. The action body
+  shows a compact summary — `N groups · M devices` plus the
+  selected group names in small text — and an **Edit groups…**
+  button opens the dialog. Inside the dialog:
+    * a **search field** filters the list by name or id (live);
+    * three batch buttons act on the currently-visible
+      *hits*: **Select all hits**, **Deselect all hits**,
+      **Invert hits**. Combined with the search, this is how
+      you do bulk operations on large fleets ("everything
+      starting with `tower-`", "everything except group 7", …);
+    * **Apply** writes the selection back; **Cancel** drops
+      the edit. The footer shows the total before you confirm
+      and warns if you've selected every known group — the
+      host's save-time canonicaliser then rewrites the persisted
+      target to **Broadcast** so the runtime and the cost
+      badge agree on the wire path. If you want a *frozen*
+      subset (one that will *not* automatically include any
+      group added later), un-check at least one group.
+* **Device** — pick one device from a MAC dropdown. The host
+  sends with the device's stored `groupId`, surfacing any drift
+  between the host's repository and the device's actual state
+  (a misconfigured device drops the packet rather than the host
+  silently masking the inconsistency — see the [Single-device
+  pinned rule](../reference/broadcast-ruleset.md#single-device-pinned-rule)
+  in the Broadcast Ruleset).
+
+The picker hides **Device** at the **Offset Group** container
+level — the offset formula is per-group, so a single-device
+container target is invalid. Children inside an Offset Group
+get the full picker again, with **Groups** filtered to the
+parent's participating set.
+
+The cost badge below each action shows packets / bytes / airtime.
+For Offset Group containers it also reports the optimizer's
+chosen wire path (Strategy A / B / C) so you can see whether the
+broadcast formula or per-group fan-out won.
+
 ### 6a. Working with offset mode
 
 The **Offset Group** action is the right tool when you want
@@ -206,8 +256,9 @@ different groups to start the same effect at different moments
 (typical use: a "wave" or "cascade" along a row of gates). The
 container has three configuration parts:
 
-* **Participants**: which groups receive the offset. Either the
-  literal "all groups" or a sparse list `[1, 3, 5]`.
+* **Participants** (target picker, Broadcast / Groups): which
+  groups receive the offset. **Broadcast** covers every known
+  group (cheapest wire path); **Groups** picks a subset.
 * **Mode**: the formula that turns each device's groupId into a
   per-device delay in milliseconds. Five options:
   * **`linear`** — `offset = base + groupId × step`. A straight

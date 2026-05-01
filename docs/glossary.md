@@ -24,7 +24,9 @@ device whose `groupId` matches.
 
 Group ids are `1..254`. Group `0` is the synthetic "Unconfigured"
 group every newly-discovered device starts in. Group `255` is the
-broadcast id (sent to every device).
+broadcast id (sent to every device). The full per-opcode rules
+for who-acts-on-what are in the
+[Broadcast Ruleset](reference/broadcast-ruleset.md).
 
 ### Group 0 / "Unconfigured"
 
@@ -32,6 +34,23 @@ The synthetic group that newly-discovered devices land in. Devices in
 group 0 cannot be the target of a scene action; assign them to a real
 group before saving scenes. The scene editor hides group 0 from
 target dropdowns.
+
+### All Devices (Broadcast)
+
+The user-facing label for the wire broadcast option in every
+scene-editor target picker and every RH-plugin group dropdown. On
+the wire it maps to `recv3 = FFFFFF` plus `groupId = 255` — every
+device parses the packet and (for the workhorse opcodes
+`OPC_PRESET` / `OPC_CONTROL` / `OPC_OFFSET`) accepts it. Selecting
+every currently-known group manually canonically *is* a broadcast:
+the host's save-time canonicaliser rewrites the persisted scene to
+`{"kind": "broadcast"}` so the runtime and the cost estimator agree
+on the wire path. Full per-opcode rules live in the
+[Broadcast Ruleset](reference/broadcast-ruleset.md). The internal
+JSON discriminator was previously called `scope` (offset_group
+children only) — that name now refers exclusively to SSE channel
+scopes; persisted `"scope"` shapes are migrated to `"broadcast"`
+on read.
 
 ### Capability
 

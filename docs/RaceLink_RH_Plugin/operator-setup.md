@@ -108,9 +108,26 @@ selectively pattern as `rl_settings`.
 | **`rl_quickset_preset`** | SELECT | `PRESETS` scope (WLED preset list reloaded, RL preset CRUD) |
 | **`rl_quickset_brightness`** | RANGE 0–255 | Static — never refreshed |
 
+The `rl_quickset_group` dropdown lists every configured group plus
+an **"All Devices (Broadcast)"** entry that maps to the wire
+broadcast (`recv3=FFFFFF`, `groupId=255`). Selecting it sends one
+packet to the whole fleet. This label is the unified vocabulary
+across the WebUI scene editor and every RH-plugin group dropdown
+(see [Glossary — All Devices (Broadcast)](../glossary.md#all-devices-broadcast)
+and the full per-opcode rules in
+[Broadcast Ruleset](../reference/broadcast-ruleset.md)).
+
+> **Migration note.** Older plugin builds labelled this entry
+> "All WLED Nodes". The string was renamed for accuracy on
+> mixed-capability fleets (broadcast packets are accepted by
+> every device class, not WLED only — capability-aware addressing
+> is on the [Roadmap](../roadmap.md#capability-agnostic-broadcast-addressing)).
+> Existing backup files keep loading; the loader recognises both
+> names during the transition.
+
 | Button | What it does |
 |---|---|
-| **`run_quickset`** | Apply the selected preset + brightness to the selected group. One-shot, immediate. |
+| **`run_quickset`** | Apply the selected preset + brightness to the selected group (or to **All Devices (Broadcast)**). One-shot, immediate. |
 
 The Quickset is **deliberately preset-focused** in v1. Scenes are
 NOT in the Quickset panel — they live as ActionEffects (see below).

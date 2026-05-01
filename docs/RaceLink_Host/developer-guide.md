@@ -33,17 +33,28 @@ canonical identifier across the validator, runner, and editor.
 3. **Editor schema** in `get_action_kinds_metadata()`: declare the
    kind with its `vars` (UI inputs), `supports_flags_override`,
    etc. The WebUI consumes this to render the action body.
-4. **Runner dispatch** in [`racelink/services/scene_runner_service.py`](../racelink/services/scene_runner_service.py):
-   add `if kind == KIND_MY_NEW_KIND: return self._run_my_new_kind(...)`
-   in `_dispatch_action`, and implement `_run_my_new_kind`. Return an
-   `ActionResult` with `ok` / `error` / `degraded` set per the same
-   contract every other `_run_*` follows. Wrap the underlying
-   `control_service.send_*` call in `bool(...)` and propagate `False`
-   into a degraded ActionResult.
-5. **Cost estimator** in [`racelink/services/scene_cost_estimator.py`](../racelink/services/scene_cost_estimator.py):
-   add a branch in `estimate_action` returning the predicted
-   packets / bytes / airtime. If the new kind broadcasts, the cost
-   is bounded; if it fans out per device, accumulate accordingly.
+4. **Dispatch plan** in [`racelink/services/dispatch_planner.py`](../racelink/services/dispatch_planner.py):
+   add a branch in `plan_action_dispatch` (or extend
+   `_plan_effect`) that produces one `WireOp` per wire packet
+   the action would emit. Each op carries `sender` (the symbolic
+   adapter key — e.g. `"send_wled_control"`), `payload` (kwargs
+   ready to spread into the named sender), and `body_bytes`
+   sized via the canonical builder in
+   [`racelink/protocol/packets.py`](../racelink/protocol/packets.py).
+   This is the **single source of truth** — the runner and the
+   cost estimator both consume the resulting plan, so a kind is
+   "done" once its planner branch is correct.
+5. **Runner adapter** in [`racelink/services/scene_runner_service.py`](../racelink/services/scene_runner_service.py):
+   if your kind needs a new symbolic sender (uncommon — most
+   kinds re-use `send_wled_control` / `send_wled_preset` /
+   `send_offset` / `send_sync`), add the mapping in
+   `_dispatch_op`. Otherwise just register the per-kind shim:
+   ```python
+   def _run_my_new_kind(self, index, action, started):
+       return self._plan_and_execute(KIND_MY_NEW_KIND, index, action, started)
+   ```
+   The cost estimator picks up the new kind automatically — no
+   changes there.
 6. **Capability mapping** in [`racelink/static/scenes.js`](../racelink/static/scenes.js)
    (`requiredCapForKind`): if the new kind requires a device
    capability (WLED / STARTBLOCK / etc.), return the cap string.
@@ -76,12 +87,14 @@ canonical identifier across the validator, runner, and editor.
 [ ] KIND_* constant in scenes_service.py
 [ ] _canonical_*_action validator (if non-trivial shape)
 [ ] get_action_kinds_metadata entry
-[ ] scene_runner_service.py dispatch + _run_* implementation
-[ ] scene_cost_estimator.py branch
+[ ] dispatch_planner.py branch (the single source of truth — runner + estimator both consume it)
+[ ] scene_runner_service.py: _dispatch_op mapping if a new sender is needed; per-kind shim that delegates to _plan_and_execute
 [ ] scenes.js requiredCapForKind entry (if cap-gated)
 [ ] scenes.js SCENE_KIND_LABELS + SCENE_KINDS_ORDER
 [ ] scenes.js defaultActionForKind seed
-[ ] tests for validator + runner + (optional) cost
+[ ] tests/test_dispatch_planner.py — pin the planner output for the new kind
+[ ] tests/test_dispatch_parity.py — runner + estimator agree on packet count & per-op sender
+[ ] tests for validator + runner-side adapter (degraded paths, etc.)
 [ ] plan-file note (if significant)
 [ ] manual smoke: editor renders the kind, save+load round-trips, run produces the expected wire trace
 ```
