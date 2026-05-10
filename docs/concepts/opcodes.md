@@ -570,7 +570,7 @@ ARM/SYNC dispatch. It carries a single `option` byte plus four data
 bytes and tells the device to change a persistent setting.
 
 For the byte-level format and the full table of option codes, see
-[`../reference/wire-protocol.md` §`P_Config`](../reference/wire-protocol.md#p_config--configuration-body-opc_config--opc_get_config-5-b-fixed).
+[`../reference/wire-protocol.md` §`P_Config`](../reference/wire-protocol.md#p_config-configuration-body-opc_config-opc_get_config-5-b-fixed).
 This section explains the **semantic model** behind the LED-config
 override options (`0x05`–`0x0A`, `0x0F`) added in 2026-05.
 
@@ -585,7 +585,7 @@ drives both the host UX and which options support live read-back.
   (`0x08`), default brightness (`0x09`), transition duration
   (`0x0A`), STARTBLOCK number-of-slots (`0x8C`) and first slot
   (`0x8D`). The host can read them back via
-  [`OPC_GET_CONFIG`](../reference/wire-protocol.md#p_getconfig--read-back-request-opc_get_config-1-b-fixed).
+  [`OPC_GET_CONFIG`](../reference/wire-protocol.md#p_getconfig-read-back-request-opc_get_config-1-b-fixed).
   The Device Options dialog renders them as *input rows with Save*
   and a divergence badge that compares the host's stored intent
   against the live device value.
@@ -694,7 +694,7 @@ plain `GET /json/cfg`:
 Absence of a key means "no override". This HTTP path remains as an
 out-of-band debug/diagnostic fallback. The **primary read path** is
 the wire opcode
-[`OPC_GET_CONFIG`](../reference/wire-protocol.md#p_getconfig--read-back-request-opc_get_config-1-b-fixed),
+[`OPC_GET_CONFIG`](../reference/wire-protocol.md#p_getconfig-read-back-request-opc_get_config-1-b-fixed),
 which works without WiFi reach to the node — see *Live read and
 divergence resolution* below.
 

@@ -170,9 +170,9 @@ The available options as of 2026-05-09:
 
 The semantic model (Policy A vs Policy B), persistence path, and
 host-side implementation notes live in
-[`../concepts/opcodes.md` §"OPC_CONFIG — device configuration"](../concepts/opcodes.md#opc_config--device-configuration).
+[`../concepts/opcodes.md` §"OPC_CONFIG — device configuration"](../concepts/opcodes.md#opc_config-device-configuration).
 The byte-level wire format is in
-[`../reference/wire-protocol.md` §`P_Config`](../reference/wire-protocol.md#p_config--configuration-change-opc_config-5-b-fixed).
+[`../reference/wire-protocol.md` §`P_Config`](../reference/wire-protocol.md#p_config-configuration-body-opc_config-opc_get_config-5-b-fixed).
 
 The WLED web UI is **not** the right place to deviate from a
 RaceLink default — UI changes to the affected settings are reverted

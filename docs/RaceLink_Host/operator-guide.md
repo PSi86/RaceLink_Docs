@@ -164,7 +164,7 @@ carries its declared schema default as italic helper text.
 #### Live read on open + divergence resolution
 
 Whenever the dialog opens, the host issues one
-[`OPC_GET_CONFIG`](../reference/wire-protocol.md#p_getconfig--read-back-request-opc_get_config-1-b-fixed)
+[`OPC_GET_CONFIG`](../reference/wire-protocol.md#p_getconfig-read-back-request-opc_get_config-1-b-fixed)
 per property in the active tab and shows the device's live value
 under each row:
 

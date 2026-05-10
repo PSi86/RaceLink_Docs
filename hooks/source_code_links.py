@@ -89,6 +89,10 @@ RULES = [
     # "../../wled00/..." for the WLED tree
     ("concepts/deterministic-effects.md", "../../wled00/",            WLED + "/wled00/"),
 
+    # docs/RaceLink_WLED/*.md (incl. dev-session retrospectives) reference
+    # the upstream WLED tree directly via "wled00/..." (no "../")
+    ("RaceLink_WLED/*.md",            "wled00/",                      WLED + "/wled00/"),
+
     # docs/assets/screenshots/README.md uses "../../../scripts/..."
     ("assets/screenshots/*.md",       "../../../scripts/",            DOCS + "/scripts/"),
 ]

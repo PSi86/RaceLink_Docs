@@ -341,7 +341,7 @@ but it drives both the host UX and the read-back support:
 
 These option codes set persistent host-authorised overrides of the
 device's compile-time RaceLink defaults. See
-[`../concepts/opcodes.md` §"OPC_CONFIG — device configuration"](../concepts/opcodes.md#opc_config--device-configuration)
+[`../concepts/opcodes.md` §"OPC_CONFIG — device configuration"](../concepts/opcodes.md#opc_config-device-configuration)
 for the override semantics, persistence, and Policy A vs Policy B
 distinction.
 
