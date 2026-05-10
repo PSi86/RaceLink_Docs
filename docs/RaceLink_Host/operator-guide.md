@@ -52,7 +52,7 @@ The WebUI uses these terms consistently. Memorising the four
     target.
   * `Apply RL Preset` — load an RL preset (effect parameters)
     on the target.
-  * `Apply WLED Control` — direct effect parameters in-line
+  * `Apply RL Effect` — direct effect parameters in-line
     (no separate preset record).
   * `Startblock Control` — send a starting-block program.
   * `SYNC (fire armed)` — fire all devices waiting on
@@ -155,10 +155,85 @@ in-radio state has drifted from the host's view of them.
 ### 4. Configure devices (optional)
 
 The **Specials** column in the device table is a button you click
-to open per-device options. WLED nodes have brightness defaults,
-mode preferences, etc.; starting-blocks have display brightness,
-slot configuration, etc. Each option carries its own help text;
-edit and click **Save** within the dialog.
+to open the per-device **Device Options** dialog. The dialog
+groups settings into per-capability tabs: WLED nodes show LED
+properties (FPS, ABL, segment geometry, default brightness,
+transition); starting-blocks show slot layout; etc. Each option
+carries its declared schema default as italic helper text.
+
+#### Live read on open + divergence resolution
+
+Whenever the dialog opens, the host issues one
+[`OPC_GET_CONFIG`](../reference/wire-protocol.md#p_getconfig--read-back-request-opc_get_config-1-b-fixed)
+per property in the active tab and shows the device's live value
+under each row:
+
+* `device: <value> ✓` — the live value matches the host's stored
+  intent. Nothing to do.
+* `device: <value> ⚠` — the device disagrees with the host's
+  stored value. Two compact buttons let you resolve it:
+  * **Push host** — re-sends the host's stored value to the
+    device, overwriting the device-side state.
+  * **Import device** — adopts the device's reported value into
+    the host's database (no wire packet sent).
+* `device: ?` plus a Retry button — the live read timed out (no
+  reply from the device within ~1.5 s). Retry sends a fresh
+  `OPC_GET_CONFIG`.
+
+#### Save
+
+Edit a value and click **Save**. The host sends `OPC_CONFIG`,
+waits for the device's ACK, and persists the new value in its
+own database. **No follow-up read is needed** — the ACK proves the
+device stored the value.
+
+**Every property change applies at runtime — no reboot required.**
+The device updates the matching runtime variable immediately:
+`strip.setTargetFps()` for FPS, `BusManager::setMilliampsMax()`
+for ABL, segment `setGeometry()` for the geometry rows,
+`transitionDelayDefault` for the transition row. The
+**Default Brightness (briS)** row also propagates to the live
+brightness so the strip visibly snaps to the new value (this can
+still be overridden by the next `OPC_CONTROL` / `OPC_SYNC` packet
+— `briS` is just the at-save snapshot). The cfg.json is updated
+on the next main-loop iteration so the change persists across
+reboots.
+
+While the save is in flight (typically ~500 ms between the device
+ACK and the host's SSE refresh) the row's device-value indicator
+shows a small **circular spinner** next to the just-saved value
+— no ⚠ badge, no Push/Import buttons. Once the host's database
+catches up, the spinner switches to *device: &lt;value&gt; ✓*. If the
+save genuinely fails (ACK timeout, device offline) you'll see a
+task-error toast and the spinner resolves to whatever the next
+state actually is; close + reopen the dialog to re-read the
+actual device state.
+
+#### WLED Properties vs Methods
+
+The WLED tab carries two kinds of entries (see
+[`../concepts/opcodes.md` §"Properties vs Methods"](../concepts/opcodes.md#properties-vs-methods)
+for the wire-protocol view):
+
+* **Properties** are persistent values: `Target Refresh Rate`,
+  `ABL Max Current`, `Default Brightness (briS)`,
+  `Transition Duration`, `Segment 0/1 Geometry`. These are the
+  rows with input fields and Save buttons.
+* **Methods** are one-shot actions. The WLED tab currently lists:
+  * **WLED Preset** — apply a numeric WLED-preset slot.
+  * **RaceLink Preset** — apply a host-side RL-preset id.
+  * **Reset to RaceLink defaults** — destructive maintenance
+    action that clears every host-set RaceLink override AND
+    applies the RaceLink baseline values at runtime (no reboot
+    required): FPS=75, ABL=0, briS=128, transition=700 ms,
+    segments collapsed to a single `seg[0]` spanning the full
+    strip. Confirm-gated; after success the dialog re-reads
+    every property so you see the post-reset state immediately.
+    All rows match the new defaults except **the segment rows** —
+    the host has no way to know the device's strip length, so
+    after a reset you click **Import device** on each segment
+    row to adopt the device's actual seg geometry into the host
+    database.
 
 ### 5. Author RL presets (optional but recommended)
 
@@ -324,7 +399,7 @@ offset-configured devices. The fix is to insert an
 
 **Pure clear without an effect**: if you want to clear without
 playing anything visible, use `mode=none` with a placeholder
-child (e.g. `wled_control` with `mode=0`, `brightness=0` so
+child (e.g. `rl_effect` with `mode=0`, `brightness=0` so
 nothing lights up). The `OPC_OFFSET(NONE)` packet is what
 clears; the placeholder child carries `F=0` to materialise the
 transition.

@@ -97,6 +97,28 @@ For older firmware, prefer **state-machine effects**
 [`concepts/opcodes.md`](concepts/opcodes.md) §"Cyclic-effect phase-lock";
 [`concepts/deterministic-effects.md`](concepts/deterministic-effects.md).
 
+## WebUI
+
+### "The whole UI freezes for 20–50 seconds after switching pages a few times in Chrome"
+
+Specifically: switching between *Devices* (`/racelink/`) and
+*Scenes* (`/racelink/scenes`) using the in-page links, in Chrome
+or another Chromium-based browser. After roughly 5 switches in
+quick succession, the next page load — and *every* request to the
+same host, including a parallel RotorHazard tab — stalls for tens
+of seconds.
+
+This is fixed in current builds by the host's three-layer SSE
+connection-lifecycle handling (explicit `pagehide` close,
+2 s server-side ping, `Connection: close` on the SSE response).
+If you can still reproduce it, you are probably running a build
+from before the fix.
+→ [`reference/sse-channels.md`](reference/sse-channels.md) §"Connection lifecycle and Chrome HTTP/1.1 slot pool".
+
+Workarounds for older builds: use F5 to navigate (it tears the
+SSE socket down hard) or use Firefox (its connection pool
+semantics differ and never exhibited the symptom).
+
 ## OTA / firmware update
 
 ### "HTTP 401 from `/update`"
@@ -143,6 +165,20 @@ device's STA subnet. The host-side auto-unlock POST is the fix.
 → [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md);
 [`RaceLink_Host/developer-guide.md`](RaceLink_Host/developer-guide.md) §"WLED
 OTA gate matrix".
+
+## WLED node operation
+
+### Physical button on WLED node does not respond
+
+The single short-press (colour change) and the press-and-hold
+(brightness fade) gestures are gated behind a 60-second
+master-quiet timer: while a paired gateway is talking to the
+node, both gestures are suppressed so the button cannot interfere
+with a live race. Either wait for ≥60 s of radio silence or power
+off the gateway. The triple short press (open hotspot) ignores
+the gate and always works.
+→ [`RaceLink_WLED/operator-setup.md`](RaceLink_WLED/operator-setup.md) §"Physical button"
+and §"Common problems".
 
 ## Linux first-time setup
 

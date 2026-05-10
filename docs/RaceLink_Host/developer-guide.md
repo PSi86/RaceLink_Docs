@@ -37,7 +37,7 @@ canonical identifier across the validator, runner, and editor.
    add a branch in `plan_action_dispatch` (or extend
    `_plan_effect`) that produces one `WireOp` per wire packet
    the action would emit. Each op carries `sender` (the symbolic
-   adapter key — e.g. `"send_wled_control"`), `payload` (kwargs
+   adapter key — e.g. `"send_control"`), `payload` (kwargs
    ready to spread into the named sender), and `body_bytes`
    sized via the canonical builder in
    [`racelink/protocol/packets.py`](../racelink/protocol/packets.py).
@@ -46,7 +46,7 @@ canonical identifier across the validator, runner, and editor.
    "done" once its planner branch is correct.
 5. **Runner adapter** in [`racelink/services/scene_runner_service.py`](../racelink/services/scene_runner_service.py):
    if your kind needs a new symbolic sender (uncommon — most
-   kinds re-use `send_wled_control` / `send_wled_preset` /
+   kinds re-use `send_control` / `send_wled_preset` /
    `send_offset` / `send_sync`), add the mapping in
    `_dispatch_op`. Otherwise just register the per-kind shim:
    ```python

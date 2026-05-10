@@ -95,12 +95,13 @@ The ASCII-only constants are below; on USB they appear after the
 | `OPC_DEVICES` | `0x01` | M2N | `IDENTIFY_REPLY` | get_devices body | Discovery broadcast |
 | `OPC_SET_GROUP` | `0x02` | M2N | `OPC_ACK` | `set_group body` | Move a node into a group |
 | `OPC_STATUS` | `0x03` | M2N | `STATUS_REPLY` | `status body` | Poll device state |
-| `OPC_PRESET` | `0x04` | M2N | `OPC_ACK` (unicast only) | `P_Preset` (4 B) | Apply a numeric WLED preset |
+| `OPC_PRESET` | `0x04` | M2N | none | `P_Preset` (4 B) | Apply a numeric WLED preset |
 | `OPC_CONFIG` | `0x05` | M2N | `OPC_ACK` | `P_Config` (5 B) | Configuration change (option + data) |
 | `OPC_SYNC` | `0x06` | M2N | RESP_NONE | `P_Sync` (4 B) | Fire armed effects at `ts24` |
 | `OPC_STREAM` | `0x07` | M2N | `OPC_ACK` | up to 128 B logical | Gateway fragments + reassembles |
 | `OPC_CONTROL` | `0x08` | M2N | `OPC_ACK` | variable (3..21 B) | Direct effect parameters |
 | `OPC_OFFSET` | `0x09` | M2N | RESP_NONE | variable (2..7 B) | Configure offset for ARM_ON_SYNC / OFFSET_MODE |
+| `OPC_GET_CONFIG` | `0x0A` | M2N | same opcode N→M | `P_GetConfig` (1 B) → `P_Config` (5 B) | Read-back of an `OPC_CONFIG`-style property |
 | `OPC_ACK` | `0x7E` | both | — | `ack body` (4 B) | Used as a reply only |
 
 `BODY_MAX` is 22 bytes; `OPC_CONTROL` is the first opcode that pushes
@@ -126,8 +127,13 @@ groupId (1) | flags (1) | presetId (1) | brightness (1)
 * `presetId` — WLED preset slot to apply.
 * `brightness` — `0..255`.
 
-Reply: `OPC_ACK` from the unicast addressee. Broadcasts get no
-reply (RESP_NONE for broadcast variant).
+Reply: **none** for both unicast and broadcast — `OPC_PRESET` is
+RESP_NONE in `racelink_proto_auto.py::RULES` and the firmware
+dispatcher (`case OPC_PRESET` in `racelink_wled.cpp`) does not
+emit `sendAckTo`. The host therefore treats the wire send as
+fire-and-forget; the operator sees the new state via the next
+`OPC_STATUS` poll, the host's own optimistic local mirror in
+`send_device_preset` / `_update_group_preset_cache`, or both.
 
 ### `OPC_CONTROL` — direct effect parameters (variable, 3..21 B)
 
@@ -267,25 +273,133 @@ ts24_le_b0 (1) | ts24_le_b1 (1) | ts24_le_b2 (1) | brightness (1)
 * `brightness` — overrides any per-device brightness for this fire.
   `0` means "use stored brightness".
 
-### `P_Config` — configuration change (`OPC_CONFIG`, 5 B fixed)
+### `P_Config` — configuration body (`OPC_CONFIG` + `OPC_GET_CONFIG`, 5 B fixed)
 
 ```
 option (1) | data0 (1) | data1 (1) | data2 (1) | data3 (1)
 ```
 
-The accepted `option` codes are documented inline in
-`racelink/web/api.py::api_config`:
+`P_Config` is the body for **both** the `OPC_CONFIG` write request
+(M2N) and the `OPC_GET_CONFIG` reply (N2M). The reply mirrors the
+write layout per option, so the host's existing `OPC_CONFIG` codec
+parses both directions unchanged.
 
-| Option | Hex | Meaning |
-|---|---:|---|
-| MAC filter enable | `0x01` | `data0`: 0 disable / 1 enable |
-| MAC filter persist | `0x03` | `data0`: 0 disable / 1 enable |
-| WLAN AP open/closed | `0x04` | `data0`: 0 closed / 1 open |
-| Forget master MAC | `0x80` | `data0`: 1 to forget |
-| Reboot node | `0x81` | `data0`: 1 to reboot |
+`OPC_CONFIG` is **unicast-only** — the device rejects broadcast
+receivers. Reply is always `OPC_ACK` (sent before the option is
+applied, since some options take time).
 
-Reply: `OPC_ACK` (the post-ACK application happens in
-`ConfigService.apply_config_update`).
+Multi-byte values are little-endian.
+
+#### Properties vs Methods
+
+The option codes split into two semantic categories. The split is
+not visible on the wire (every option uses the same 5-byte body),
+but it drives both the host UX and the read-back support:
+
+* **Properties** are persistent values stored on the device. The
+  host can read them back via `OPC_GET_CONFIG` (see below). The
+  Device Options dialog renders them as input rows with a Save
+  button and a divergence badge that compares the host-stored
+  intent against the live device value.
+* **Methods** are one-shot side-effecting commands. There is no
+  meaningful "current value" to read; once invoked, the device
+  performs the action and ACKs. The dialog renders them as action
+  buttons (with a confirm prompt for destructive ones).
+* **Hybrid** options (`0x01`, `0x03`, `0x04`) are persistent like
+  properties but their state is exposed via `STATUS_REPLY`'s
+  `configByte` rather than `OPC_GET_CONFIG`. From the operator UX
+  they behave like methods (toggle commands).
+
+| Hex | Name | Category | Read path |
+|---|---|---|---|
+| `0x01` | MAC filter enable | Method (toggle) | `STATUS_REPLY.configByte` bit 0 |
+| `0x02` | Clear master MAC | Method (one-shot) | — |
+| `0x03` | MAC filter persist | Method (toggle) | `STATUS_REPLY.configByte` bit 1 |
+| `0x04` | WLAN AP open/closed | Method (toggle) | `STATUS_REPLY.configByte` bit 2 |
+| `0x05` | Target FPS | Property | `OPC_GET_CONFIG` |
+| `0x06` | Segment 0 geometry | Property (uint16 pair) | `OPC_GET_CONFIG` |
+| `0x07` | Segment 1 geometry | Property (uint16 pair) | `OPC_GET_CONFIG` |
+| `0x08` | ABL max mA | Property | `OPC_GET_CONFIG` |
+| `0x09` | Default brightness `briS` | Property | `OPC_GET_CONFIG` |
+| `0x0A` | Transition duration | Property | `OPC_GET_CONFIG` |
+| `0x0F` | Clear all overrides | Method (destructive — "Reset to RaceLink defaults") | — |
+| `0x80` | Forget master MAC | Method (destructive) | — |
+| `0x81` | Reboot node | Method (destructive) | — |
+| `0x8C` | STARTBLOCK number of slots (DEV_TYPE 50) | Property | `OPC_GET_CONFIG` |
+| `0x8D` | STARTBLOCK first slot (DEV_TYPE 50) | Property | `OPC_GET_CONFIG` |
+
+#### Identity / wireless config (0x01..0x04)
+
+| Option | Hex | Wire | Meaning |
+|---|---:|---|---|
+| MAC filter enable | `0x01` | `data0`: 0 disable / 1 enable | Toggle the per-node sender MAC allowlist. |
+| Clear learned master MAC | `0x02` | `data0`: any (typically 1) | Forget the bound master, return the node to "unconfigured" so it accepts the next discovery. |
+| MAC filter persist | `0x03` | `data0`: 0 disable / 1 enable | Whether the bound master MAC survives reboots. |
+| WLAN AP open/closed | `0x04` | `data0`: 0 closed / 1 open | Open or close the node's WiFi AP on demand. |
+
+#### RaceLink-authorised LED-config overrides (0x05..0x0A, 0x0F)
+
+These option codes set persistent host-authorised overrides of the
+device's compile-time RaceLink defaults. See
+[`../concepts/opcodes.md` §"OPC_CONFIG — device configuration"](../concepts/opcodes.md#opc_config--device-configuration)
+for the override semantics, persistence, and Policy A vs Policy B
+distinction.
+
+| Option | Hex | Wire | Meaning |
+|---|---:|---|---|
+| Set FPS override | `0x05` | `data0`: uint8 fps (0–250) | Policy A: override `RACELINK_DEFAULT_FPS`. Persisted in `cfg.json` as `RaceLink.overrides.fps`. |
+| Set Segment 0 geometry | `0x06` | `data0..1`: uint16 LE start; `data2..3`: uint16 LE stop | Policy B: set seg[0] start/stop. Persisted as `RaceLink.overrides.seg0={start,stop}`. |
+| Set Segment 1 geometry | `0x07` | `data0..1`: uint16 LE start; `data2..3`: uint16 LE stop | Policy B: set seg[1] start/stop. Device appends seg[1] if missing. Persisted as `RaceLink.overrides.seg1={start,stop}`. |
+| Set ABL max mA override | `0x08` | `data0..1`: uint16 LE mA (0 = ABL disabled) | Policy A: override `RACELINK_DEFAULT_ABL_MAX_MA`. Persisted as `RaceLink.overrides.abl`. |
+| Set default brightness override | `0x09` | `data0`: uint8 briS (0–255) | Policy B: override the persisted boot brightness. Persisted as `RaceLink.overrides.bri`. |
+| Set transition duration override | `0x0A` | `data0..1`: uint16 LE ms | Policy B: override `transitionDelayDefault`. Persisted as `RaceLink.overrides.tt`. |
+| Clear all RaceLink overrides | `0x0F` | `data0..3`: 0 | **Method (destructive)** — surfaced in the Device Options dialog as "Reset to RaceLink defaults". Resets every `*Set` flag to false. Compile-time defaults re-take effect on next boot (Policy A) or operator-saved values are honoured again (Policy B). |
+
+#### System commands (0x80..0x8F)
+
+| Option | Hex | Wire | Meaning |
+|---|---:|---|---|
+| Reboot node | `0x81` | `data0`: 1 to reboot | Sets `doReboot = true`; reboot happens in main loop. |
+| Number of slots (DEV_TYPE=50 only) | `0x8C` | `data0`: 1–8 | ePaper layout slot count. |
+| First slot (DEV_TYPE=50 only) | `0x8D` | `data0`: 1–8 | ePaper layout starting slot. |
+
+Unknown option codes hit the `else` branch silently (no NACK) — the
+ACK was already sent. Senders should not rely on unknown-option
+detection; verify support out-of-band.
+
+### `P_GetConfig` — read-back request (`OPC_GET_CONFIG`, 1 B fixed)
+
+```
+option (1)
+```
+
+`OPC_GET_CONFIG` (opcode `0x0A`) requests the device's live value
+for one **property**-class option (see *Properties vs Methods*
+above). Reply uses the same opcode with the N→M direction bit and a
+`P_Config`-shaped 5-byte body — the data bytes carry the live value
+packed per-option in the same little-endian layout as the matching
+`OPC_CONFIG` write command.
+
+* **Unicast-only.** Different device classes interpret options
+  differently, so a broadcast read would be ambiguous. Senders MUST
+  use a concrete `recv3`; the firmware drops broadcast receivers.
+* **Property-only.** Method codes (`0x01`–`0x04`, `0x0F`,
+  `0x80`–`0x81`) are write-only; sending `OPC_GET_CONFIG` for them
+  produces **no reply** and the host's `send_and_wait_for_reply`
+  helper times out gracefully. The dialog renders the row's
+  device-side value as `device: ?` with a Retry button.
+* **Reply timing.** The firmware reads the property's *live*
+  runtime value (not the override slot). For Policy A overrides
+  this equals "override-or-compile-default"; for Policy B it equals
+  "override-or-operator-cfg". Either way the host gets the answer
+  to "what is the device using right now", which is what the
+  Device Options dialog's divergence check needs.
+* **Codec note.** The host's `parse_reply_event` decodes a 5-byte
+  reply for opcode `0x0A` into a `GET_CONFIG_REPLY` event carrying
+  `option`, `data0..3`. The `PendingRequestRegistry` matches on
+  `(sender, opcode, option)` so two simultaneous reads for
+  different options on the same device cannot wake each other's
+  waiter (iteration-3 secondary discriminator).
 
 ### Other bodies
 

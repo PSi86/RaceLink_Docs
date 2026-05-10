@@ -73,7 +73,7 @@ Every action has at minimum:
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `kind` | string | yes | One of: `wled_preset`, `rl_preset`, `wled_control`, `startblock`, `sync`, `delay`, `offset_group`. |
+| `kind` | string | yes | One of: `wled_preset`, `rl_preset`, `rl_effect`, `startblock`, `sync`, `delay`, `offset_group`. |
 | `target` | object | depends on kind | See "Target discriminator" below. |
 | `flags_override` | object | optional | Sparse override of the canonical flags byte; see "flags_override semantics" below. |
 
@@ -106,14 +106,15 @@ named host-side RL preset.
 |---|---|---|
 | `preset_key` | string | Stable preset key. RL presets use `RL:<slug>`; numeric WLED presets accessed by slot use `WLED:<int>`. |
 
-### `wled_control` — direct effect parameters
+### `rl_effect` — direct effect parameters
 
 Sends `OPC_CONTROL` with effect parameters supplied inline. Useful
-when you don't want the indirection of a saved preset.
+when you don't want the indirection of a saved RL preset (e.g.
+testing an unsaved combination).
 
 ```json
 {
-  "kind": "wled_control",
+  "kind": "rl_effect",
   "target": { ... },
   "mode": 35,
   "speed": 128,
@@ -306,7 +307,7 @@ The `SceneService.create_or_update` validator enforces:
    non-matching targets log a warning at load time).
 6. `offset_group` children list length ≤ 16.
 7. `delay.ms ≥ 0`.
-8. Numeric fields in `wled_control` (mode, speed, brightness, …)
+8. Numeric fields in `rl_effect` (mode, speed, brightness, …)
    are in their byte ranges (0–255 each).
 
 ## Migration shims
@@ -322,8 +323,13 @@ Two on-load migrations keep older persisted scenes loadable:
   length-1 list; `offset_group.groups` → `target` field. See
   the table in [Save-time canonicalisation](#save-time-canonicalisation).
 
-Both shims log one line per rewritten action. Removal target:
-2026-Q3.
+As of 2026-05-04 each migration emits a `WARNING`-level log line
+on the `racelink.services.scenes_service` logger (one per rewritten
+action / per legacy field, four distinct messages: `target.kind=scope`,
+`target.kind=group`, `target.kind=groups_offset`, `offset_group.groups
+field`). Operators monitoring scene logs will see these if any saved
+scene still carries a legacy shape. Removal target: 2026-Q3 — gated
+on no warnings firing across a full release cycle.
 
 ## Example scene
 

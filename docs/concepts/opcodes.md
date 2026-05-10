@@ -131,7 +131,7 @@ When you click `Apply RL Preset` on the Scenes page, the host:
 2. Materialises the parameters into a fieldMask + payload.
 3. Sends one `OPC_CONTROL` to the target group (or device).
 
-When you click `Apply WLED Control` (the inline-parameter scene
+When you click `Apply RL Effect` (the inline-parameter scene
 action), the host:
 
 1. Reads the parameters from the action's `params` block.
@@ -283,7 +283,7 @@ materialise the NONE transition.
 
 If you want to clear offset mode without playing any visible
 effect, use `mode=none` with a placeholder child like
-`wled_control` with `mode=0` (Solid) and `brightness=0`. The
+`rl_effect` with `mode=0` (Solid) and `brightness=0`. The
 `OPC_OFFSET(NONE)` packet does the work; the placeholder child
 just carries `F=0` to trigger materialisation.
 
@@ -442,7 +442,7 @@ scene:
 
 ```
 [Offset Group, "All groups", mode=none]
-  └─ [Apply WLED Control, arm_on_sync, mode=0, brightness=0]
+  └─ [Apply RL Effect, arm_on_sync, mode=0, brightness=0]
 [Sync]
 ```
 
@@ -526,6 +526,303 @@ drift-correction error is computed against
 `strip.timebase + activePhaseOffsetMs` — i.e. the *logical*
 timebase as if the offset were zero — so the correction tracks
 master-relative drift, not the offset itself.
+
+---
+
+## Local-state update timing — when the host mirrors a wire send
+
+Every operator-initiated wire send must eventually be reflected in
+the host's local device DTO so the device-table and other UI
+surfaces show the current state without requiring a manual
+`OPC_STATUS` poll. The *when* is determined by the opcode's reply
+policy:
+
+* **`RESP_ACK` / `RESP_SPECIFIC`** — the wire send waits for a
+  device-side acknowledgement. The host updates `dev.*` only after
+  the reply lands. Examples: `OPC_CONFIG`'s `dev.specials` write
+  in `api_specials_config` runs inside the post-ACK persistence
+  path; `OPC_SET_GROUP` waits for ACK before considering the move
+  applied (`bulk_set_group`, `_spawn_auto_reassign_worker`).
+  Rationale: a packet the device never received must not corrupt
+  the host's view of "what the device has".
+* **`RESP_NONE`** — fire-and-forget. The host updates `dev.*`
+  immediately (optimistic), because no reply is coming and the
+  operator expects to see the change reflected without a manual
+  `Get Status`. Examples: `OPC_PRESET`'s eager mirror in
+  `send_device_preset` / `_update_group_preset_cache`;
+  `OPC_CONTROL`'s mirror in `send_control` /
+  `_update_group_control_cache` (`flags`, `effectId` from `mode`,
+  `brightness` when HAS_BRI). Rationale: the operator's last
+  intent is the most accurate reflection of device state we have
+  until the next `OPC_STATUS`.
+
+`OPC_SYNC` and `OPC_OFFSET` are also `RESP_NONE` but have no
+per-device DTO field to mirror — `OPC_SYNC` triggers
+already-armed effects on the device side; `OPC_OFFSET` configures
+per-group offset state that the host doesn't surface in the
+device table.
+
+## OPC_CONFIG — device configuration
+
+`OPC_CONFIG` is a different shape of opcode from CONTROL/OFFSET/SYNC:
+it does not carry effect parameters and it never participates in
+ARM/SYNC dispatch. It carries a single `option` byte plus four data
+bytes and tells the device to change a persistent setting.
+
+For the byte-level format and the full table of option codes, see
+[`../reference/wire-protocol.md` §`P_Config`](../reference/wire-protocol.md#p_config--configuration-body-opc_config--opc_get_config-5-b-fixed).
+This section explains the **semantic model** behind the LED-config
+override options (`0x05`–`0x0A`, `0x0F`) added in 2026-05.
+
+### Properties vs Methods
+
+The option codes split into two semantic kinds. The split is not
+visible on the wire (every option uses the same 5-byte body) but it
+drives both the host UX and which options support live read-back.
+
+* **Properties** are persistent values stored on the device:
+  FPS (`0x05`), segment geometry (`0x06`/`0x07`), ABL max mA
+  (`0x08`), default brightness (`0x09`), transition duration
+  (`0x0A`), STARTBLOCK number-of-slots (`0x8C`) and first slot
+  (`0x8D`). The host can read them back via
+  [`OPC_GET_CONFIG`](../reference/wire-protocol.md#p_getconfig--read-back-request-opc_get_config-1-b-fixed).
+  The Device Options dialog renders them as *input rows with Save*
+  and a divergence badge that compares the host's stored intent
+  against the live device value.
+* **Methods** are one-shot side-effecting commands: Clear master
+  MAC (`0x02`), Clear all overrides / "Reset to RaceLink defaults"
+  (`0x0F`), Forget master MAC (`0x80`), Reboot (`0x81`). There is
+  no meaningful "current value" to read; the device performs the
+  action and ACKs. The dialog renders them as *action buttons* —
+  destructive ones (`0x0F`, `0x80`, `0x81`) gate behind a confirm
+  prompt.
+* **Hybrid** options (`0x01` MAC filter on, `0x03` MAC filter
+  persist, `0x04` WLAN AP) are persistent like properties but their
+  state ships in `STATUS_REPLY`'s `configByte` rather than via
+  `OPC_GET_CONFIG`. They render as toggle commands.
+
+See the option-code table in
+[`../reference/wire-protocol.md` §"Properties vs Methods"](../reference/wire-protocol.md#properties-vs-methods)
+for the full classification.
+
+### Why the override layer exists
+
+The `racelink_wled` usermod runs `applyRaceLinkDefaults()` on every
+boot, after WLED has loaded `cfg.json`. That function compares a
+small set of WLED settings (FPS, ABL, Gamma, AP behaviour, …)
+against compile-time `RACELINK_DEFAULT_*` constants and overwrites
+the runtime globals if they differ. The mechanism prevents
+per-device drift in settings that affect cross-device synchronisation
+and visible uniformity — most importantly the V3↔V4 Strobe-drift
+case (see
+[`../RaceLink_WLED/dev-session-2026-05-sync-investigation.md`](../RaceLink_WLED/dev-session-2026-05-sync-investigation.md)).
+
+The price is that operator UI changes to those settings get reverted
+on every reboot. That is exactly the desired property for fleet
+uniformity, but it means the fleet operator has no sanctioned path
+to deviate from a default for a single device — until OPC_CONFIG.
+
+**OPC_CONFIG option codes 0x05+ are the host-authorised path** for
+sanctioned deviations. The host sends an override; the device stores
+it persistently in `cfg.json` (under `RaceLink.overrides`) and
+remembers it across reboots; `applyRaceLinkDefaults()` consults the
+override and uses it instead of the compile-time default.
+
+### Two policies — A and B
+
+The semantics of an override depend on whether the underlying
+setting is **fleet-uniform-required** (Policy A) or
+**operator-tunable** (Policy B). Both policies share the same wire
+format and persistence path; they differ in what
+`applyRaceLinkDefaults()` does when no override is set.
+
+**Policy A — fleet-default-replacing.** Used for FPS (`0x05`) and
+ABL max mA (`0x08`). Behaviour:
+
+* No override: device enforces `RACELINK_DEFAULT_*` on every boot.
+  Operator UI changes to the underlying WLED setting are reverted.
+* Override set: device enforces the override value on every boot.
+  Operator UI changes are still reverted, but the new "default" is
+  the host-authorised value.
+* Override cleared (`0x0F`): next boot, compile-time default applies
+  again.
+
+**Policy B — operator-default-honouring.** Used for Segment 0/1
+geometry (`0x06`/`0x07`), default brightness `briS` (`0x09`), and
+transition duration (`0x0A`). Behaviour:
+
+* No override: device leaves the underlying WLED setting untouched.
+  Operator UI changes are persisted by WLED's normal `cfg.json`
+  write path.
+* Override set: device enforces the override value on every boot.
+  Operator UI changes to the underlying setting are reverted on
+  next reboot — the host has taken authoritative control.
+* Override cleared (`0x0F`): next boot, operator-saved values are
+  honoured again.
+
+The split exists because some settings (FPS, ABL) cause visible
+fleet-wide problems when they drift between devices, and some
+(brightness, transition feel, segment geometry) are reasonable
+per-device tuning targets. The host can use Policy B for "push this
+value to all devices in this group" without imposing a permanent
+default on the fleet.
+
+### Persistence and visibility
+
+After a successful OPC_CONFIG that triggered an override change,
+the device sets WLED's internal `configNeedsWrite` flag. WLED's
+main loop calls `serializeConfigToFS()` on its next iteration and
+writes `cfg.json` with both the override (in `RaceLink.overrides.*`)
+and the affected runtime global (in `hw.led.fps`, `light.gc.*`, etc.)
+in sync.
+
+The host can therefore observe the device's current overrides via
+plain `GET /json/cfg`:
+
+```json
+{
+  "RaceLink": {
+    "overrides": {
+      "fps": 60,
+      "seg0": { "start": 0, "stop": 18 },
+      "seg1": { "start": 18, "stop": 36 }
+    }
+  }
+}
+```
+
+Absence of a key means "no override". This HTTP path remains as an
+out-of-band debug/diagnostic fallback. The **primary read path** is
+the wire opcode
+[`OPC_GET_CONFIG`](../reference/wire-protocol.md#p_getconfig--read-back-request-opc_get_config-1-b-fixed),
+which works without WiFi reach to the node — see *Live read and
+divergence resolution* below.
+
+### Live read and divergence resolution
+
+The Device Options dialog shows three pieces of information per
+property row:
+
+1. The host-stored intent (the value in `dev.specials[…]`) —
+   editable via the input field.
+2. The schema default (italic helper text under the label).
+3. The **live device value**, fetched via `OPC_GET_CONFIG` when the
+   dialog opens.
+
+When the dialog opens, the host fires one `OPC_GET_CONFIG` per
+property in the active capability tab, sequentially (the gateway is
+half-duplex, so parallel reads would queue at the transport layer
+anyway). Replies populate a per-`(addr, option-key)` cache; the row
+component compares them against the host-stored intent and renders
+one of:
+
+* **Match** — `device: <value> ✓` (no warning).
+* **Divergence** — `device: <value> ⚠` plus two compact buttons:
+  * **Push host** → re-sends `OPC_CONFIG` with the host's stored
+    value, overwriting the device.
+  * **Import device** → adopts the device's reported value into the
+    host's stored intent (writes `dev.specials[…]` only — no
+    `OPC_CONFIG` packet sent).
+* **Read failed** (timeout / no reply) — `device: ?` plus a Retry
+  button.
+
+Save behaviour: the device's `OPC_CONFIG` ACK is the persistence
+confirmation. The host therefore does **not** fire a follow-up
+`OPC_GET_CONFIG` after Save — it just optimistically updates the
+live cache to the just-saved value so the divergence badge clears
+immediately. If the save's task fails (ACK timeout, device
+offline), the operator sees a task-error toast and can close +
+reopen the dialog to re-read the actual device state.
+
+### Reset to RaceLink defaults (`OPC_CONFIG 0x0F`)
+
+The destructive maintenance method that clears every host-set
+RaceLink override on a single device **and** applies the RaceLink
+baseline values at runtime — no reboot required. Surfaced in the
+WLED tab of the Device Options dialog as a confirm-gated action
+button.
+
+Post-reset effects (all applied immediately on the device, then
+saved to `cfg.json`):
+
+* **FPS** → `RACELINK_DEFAULT_FPS` (75 unless build-flag overridden).
+* **ABL max mA** → `RACELINK_DEFAULT_ABL_MAX_MA` (0, ABL disabled).
+* **Default brightness `briS`** → `RACELINK_DEFAULT_BRIS` (128).
+* **Transition duration** → `RACELINK_DEFAULT_TRANSITION_MS` (700 ms).
+* **Segments** → reset to a single `seg[0]` spanning the full strip
+  (via `strip.resetSegments()`); any extra segments are removed.
+
+The `RACELINK_DEFAULT_BRIS` and `RACELINK_DEFAULT_TRANSITION_MS`
+constants exist solely as the reset-target values; they are NOT
+enforced by `applyRaceLinkDefaults()` on every boot, because Policy
+B preserves operator-cfg semantics in steady state. They only fire
+inside the `0x0F` handler.
+
+Host-side effects:
+
+* `dev.specials[wled_*]` are reset to the host's schema defaults.
+* The dialog re-runs the on-open read pass (`refresh: "active-tab"`).
+* All Policy A rows and the briS / transition rows match the
+  defaults — no divergence badge.
+* **Segment rows show divergence** because the host has no
+  reliable strip-length default (different builds ship different
+  LED counts). The operator clicks **Import device** on each
+  segment row to adopt the device's actual values into the host
+  database. This is a single, deliberate step per affected row.
+
+### Boot-time interaction with `applyRaceLinkDefaults()`
+
+```
+Boot
+  ├─ WLED loads cfg.json (incl. RaceLink.overrides.*)
+  ├─ readFromConfig() populates the in-memory `overrides` struct
+  └─ UsermodRaceLink::setup()
+        └─ applyRaceLinkDefaults()
+              ├─ Policy A: target = override.fooSet ? override.foo : DEFAULT_FOO
+              │            if (live != target) write live; mark configNeedsWrite
+              └─ Policy B: if (override.fooSet && live != override.foo)
+                              write live; mark configNeedsWrite
+  └─ if (configNeedsWrite) serializeConfigToFS()  // re-writes cfg.json
+```
+
+A drifted device thus self-heals on the first boot after correction
+(the `[RaceLink] enforcing …` log lines fire and `cfg.json` is
+re-saved). Subsequent boots are silent.
+
+### Host implementation notes
+
+* OPC_CONFIG and OPC_GET_CONFIG are both **unicast-only**. To
+  configure a fleet, the host iterates per node. Group-broadcast
+  support is on the Phase 2.2-Outline list but not yet implemented.
+* Expect an `OPC_ACK` reply per `OPC_CONFIG` send. The ACK is sent
+  **before** the option is applied (some options take time, e.g.
+  segment append). The ACK is the host's persistence confirmation —
+  no follow-up read is needed after a successful Save.
+* Apply order between siblings on a node: each OPC_CONFIG is
+  independent; a host that sends 0x05, 0x06, 0x07 in sequence will
+  see all three persisted.
+* Coordinate with the device's WLED UI: any setting touched by the
+  override layer becomes "host-managed". The divergence-resolution
+  flow in the Device Options dialog (see *Live read and divergence
+  resolution* above) is the operator-facing surface for this.
+* Host code-path (the full read+write pipeline):
+  * Schema entries live in
+    [`racelink/domain/specials.py`](https://github.com/PSi86/RaceLink_Host/blob/main/racelink/domain/specials.py)
+    under `RL_SPECIALS["WLED"]["options"]` (properties) and
+    `RL_SPECIALS["WLED"]["functions"]` (methods).
+  * Wire encode/decode lives in
+    [`racelink/services/specials_service.py`](https://github.com/PSi86/RaceLink_Host/blob/main/racelink/services/specials_service.py)
+    (`pack_option_value`, `unpack_option_value`, `write_specials`).
+  * Read-back service: `ConfigService.read_config(dev, option)` in
+    [`racelink/services/config_service.py`](https://github.com/PSi86/RaceLink_Host/blob/main/racelink/services/config_service.py).
+  * Web routes: `POST /api/specials/config` (write), `POST
+    /api/specials/get` (read), `POST /api/specials/config/import`
+    (operator imports the device's reported value into host db),
+    `POST /api/specials/action` (methods incl. `wled_reset_overrides`).
+* Device-side code reference (single source of truth for
+  behaviour): the `OPC_CONFIG` and `OPC_GET_CONFIG` dispatchers in
+  `usermods/racelink_wled/racelink_wled.cpp` and
+  `applyRaceLinkDefaults()` in the same file.
 
 ---
 

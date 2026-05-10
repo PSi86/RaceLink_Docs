@@ -83,7 +83,15 @@ The word "effect" has been disambiguated from "preset". An **effect**
 is the set of WLED parameters that drive a segment's appearance:
 `mode` (the effect-mode index, e.g. *Breathe* or *Rainbow Cycle*),
 `speed`, `intensity`, custom sliders, palette, colours. Sent live via
-`OPC_CONTROL` (the `Apply WLED Control` scene action).
+`OPC_CONTROL` (the `Apply RL Effect` scene action).
+
+The device table's **Effect** column shows the device's currently
+active effect mode (decoded from the `effectId` byte in
+`STATUS_REPLY` to the WLED effect name, e.g. `Breathe`). This is
+the *live state on the device* — distinct from the host-tracked
+"last preset I asked the device to apply", which is what the
+Device Options dialog's RL-preset dropdown pre-selects from
+`dev.presetId`.
 
 A historical maintenance plan (the "effect vs. preset" cleanup) renamed
 several misleading symbols in the source code so that "effect" now
@@ -91,6 +99,30 @@ means strictly "WLED segment effect parameters" and never "WLED preset
 list". A few internal symbols still use the legacy term where renaming
 is a public-API change; flag B1/B2 in the cleanup plan if you intend
 to refactor further.
+
+### Boot effect
+
+The visual the WLED node shows immediately after power-up when WLED's
+*Apply preset at boot* setting is `0`: the `racelink_wled` usermod
+paints a Solid colour drawn at random from {red, green, blue} on the
+main segment so an operator can see the node is alive even in the
+absence of a paired gateway. The boot pick also seeds the
+physical-button click ring so the next two clicks cover the
+remaining two primaries before the cycle switches to random colours
+— this guarantees every primary is reachable from any boot
+position. When *Apply preset at boot* is non-zero, WLED's standard
+preset path runs untouched and the boot effect does not fire. See
+[`RaceLink_WLED/operator-setup.md`](RaceLink_WLED/operator-setup.md)
+§"Boot effect" and §"Click colour cycle".
+
+### Pairing visual feedback
+
+A direct effect call (Breathe, white) the WLED node renders after
+accepting `OPC_SET_GROUP` from a gateway. Replaces the prior
+preset-based feedback (legacy preset slot 11) so the operator can
+freely use all 250 WLED preset slots. See
+[`RaceLink_WLED/operator-setup.md`](RaceLink_WLED/operator-setup.md)
+§"Pairing visual feedback".
 
 ### Scene
 
@@ -107,7 +139,7 @@ One step in a scene. Action kinds:
   on the target.
 * `rl_preset` — `Apply RL Preset` — apply an RL preset (effect
   parameters) on the target.
-* `wled_control` — `Apply WLED Control` — direct effect parameters
+* `rl_effect` — `Apply RL Effect` — direct effect parameters
   in-line, no separate preset record.
 * `startblock` — `Startblock Control` — send a starting-block
   program.
@@ -133,7 +165,23 @@ the full operator workflow.
 
 Per-device-type configuration knobs (e.g. starting-block display
 brightness, WLED-specific options). Edited via the device's
-**Specials** dialog.
+**Device Options** dialog (formerly the *Specials* dialog). Each
+capability tab carries two kinds of entries: **Properties** (rows
+with input + Save) and **Methods** (action buttons). See *Property
+(OPC_CONFIG)* and *Method (OPC_CONFIG)* under "Wire-protocol terms"
+below for the conceptual split.
+
+### Device Options dialog
+
+The per-device modal that opens from the device-table's *Type*
+link. Renders one tab per declared capability (WLED, STARTBLOCK,
+…). On open, the host reads each property from the device via
+`OPC_GET_CONFIG` and shows a divergence badge if the device's live
+value disagrees with the host's stored intent. See
+[`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md)
+§4 for the operator workflow and
+[`concepts/opcodes.md`](concepts/opcodes.md#live-read-and-divergence-resolution)
+for the wire-level details.
 
 ### Master pill
 
@@ -148,6 +196,18 @@ events. Hover for the full explanation; click ↻ to refresh.
 The USB dongle that bridges the host to the LoRa fleet. The host
 opens it with `exclusive=True` so only one process can hold the
 port at a time.
+
+### Master-quiet gate
+
+A 60-second post-RX timeout used by the WLED node's physical-button
+state machine: the colour-change and brightness-fade gestures only
+fire when no packet from the paired master MAC has been received for
+at least the timeout window. Prevents the button from interfering
+with a live race and re-arms automatically once the gateway falls
+silent. The triple-press hotspot gesture deliberately ignores the
+gate so operators always have a recovery path. See
+[`RaceLink_WLED/operator-setup.md`](RaceLink_WLED/operator-setup.md)
+§"Physical button".
 
 ## Wire-protocol terms
 
@@ -171,9 +231,31 @@ wrong-direction frames.
 The current set includes:
 `OPC_DEVICES`, `OPC_SET_GROUP`, `OPC_STATUS`, `OPC_PRESET`,
 `OPC_CONFIG`, `OPC_SYNC`, `OPC_STREAM`, `OPC_CONTROL`, `OPC_OFFSET`,
-plus `OPC_ACK` used as a reply only. See
+`OPC_GET_CONFIG`, plus `OPC_ACK` used as a reply only. See
 [`reference/wire-protocol.md`](reference/wire-protocol.md) §Opcodes for the full
 table.
+
+### Property (`OPC_CONFIG`)
+
+A persistent value stored on the device that can be read back via
+`OPC_GET_CONFIG`. Examples: WLED FPS (`0x05`), ABL max mA (`0x08`),
+segment geometry (`0x06`/`0x07`), `briS` (`0x09`), transition
+duration (`0x0A`), STARTBLOCK number-of-slots (`0x8C`) and first
+slot (`0x8D`). The Device Options dialog renders properties as
+input rows with Save buttons and a divergence badge that compares
+the host-stored intent against the live device value. See
+[`reference/wire-protocol.md` §"Properties vs Methods"](reference/wire-protocol.md#properties-vs-methods).
+
+### Method (`OPC_CONFIG`)
+
+A one-shot side-effecting `OPC_CONFIG` command with no meaningful
+"current value" to read back. Examples: Clear master MAC (`0x02`),
+Reset to RaceLink defaults (`0x0F`), Forget master MAC (`0x80`),
+Reboot node (`0x81`). The Device Options dialog renders methods as
+action buttons; destructive methods are gated behind a confirm
+prompt. The hybrid options (`0x01`, `0x03`, `0x04`) are persistent
+state but exposed via `STATUS_REPLY.configByte` rather than
+`OPC_GET_CONFIG`, so the dialog UX treats them as toggle methods.
 
 ### Flags byte
 

@@ -124,6 +124,7 @@ nav:
       - Standalone install (Windows + Linux): RaceLink_Host/standalone-install.md
       - Gateway operator setup: RaceLink_Gateway/operator-setup.md
       - WLED node operator setup: RaceLink_WLED/operator-setup.md
+      - WLED node pin configuration: RaceLink_WLED/pin-config.md
       - RotorHazard plugin (operator): RaceLink_RH_Plugin/operator-setup.md
       - Troubleshooting: troubleshooting.md
       - Glossary: glossary.md
@@ -140,6 +141,7 @@ nav:
       - Web API: reference/web-api.md
       - SSE channels & state scopes: reference/sse-channels.md
       - Scene file format: reference/scene-format.md
+      - Wire timing — per-packet wall-clock breakdown: reference/wire-timing.md
 
   - Developer Guide:
       - Architecture (Host): RaceLink_Host/architecture.md
@@ -153,6 +155,10 @@ nav:
           - RaceLink_Gateway (firmware): RaceLink_Gateway/README.md
           - RaceLink_WLED (firmware): RaceLink_WLED/README.md
           - RaceLink_RH_Plugin (adapter): RaceLink_RH_Plugin/README.md
+
+      - WLED firmware internals:
+          - Radio modules (chip families and selection): RaceLink_WLED/radio-modules.md
+          - Session retrospective — V3↔V4 sync investigation (2026-05): RaceLink_WLED/dev-session-2026-05-sync-investigation.md
 
       - RotorHazard plugin internals:
           - Manifest dependency format: RaceLink_RH_Plugin/manifest-dependency-format.md

@@ -363,25 +363,33 @@ shape is the per-capability "specials" form schema. See
 
 ### `POST /api/specials/config`
 
-Send an `OPC_CONFIG` packet that updates a single per-device "special"
-knob (e.g. an LED count, a panel mode). Wrapped in a TaskManager job.
+Send an `OPC_CONFIG` packet that updates a single per-device
+**property** (e.g. WLED FPS, ABL max mA, segment geometry,
+STARTBLOCK slot count). Wrapped in a TaskManager job.
 
 **Request body**:
 ```jsonc
 {
   "mac":   "AABBCC",
-  "key":   "ledCount",          // capability-specific knob name
-  "value": 60                    // integer
+  "key":   "wled_fps",          // capability-specific knob name
+  "value": 60                    // scalar integer OR
+                                  //   { "start": 0, "stop": 18 } for
+                                  //   uint16-pair shapes (segment geometry)
 }
 ```
 
 The `key` → `option` byte mapping is resolved by `SpecialsService`.
+The host packs `value` into `data0..3` per the schema's `bytes` /
+`shape` fields (see
+[`../concepts/opcodes.md` §"Properties vs Methods"](../concepts/opcodes.md#properties-vs-methods)).
 
 **Response 200**: `{ "ok": true, "task": <task snapshot> }`.
 
 Task `meta` carries `{mac, key, message}`. The task itself waits for
 ACK with a 6 s timeout; on ACK it updates the in-memory `specials`
-dict and persists with scope `DEVICE_SPECIALS`.
+dict and persists with scope `DEVICE_SPECIALS`. The ACK is the
+device's persistence confirmation — the route does **not** issue
+a follow-up `OPC_GET_CONFIG` after the write.
 
 ### `POST /api/specials/action`
 
@@ -413,7 +421,76 @@ unsupported function, params coercion failed); 404 (device not found);
 
 ### `POST /api/specials/get`
 
-**Response 501**: `{ "ok": false, "error": "not implemented" }`. Reserved.
+Read one per-device **property** live from the device via
+`OPC_GET_CONFIG`. Used by the Device Options dialog when it opens
+to populate each row's "device value" badge.
+
+**Request body**:
+```jsonc
+{ "mac": "AABBCC", "key": "wled_fps" }
+```
+
+The `key` → `option` byte mapping is resolved by `SpecialsService`;
+sending a key that maps to a method-class option (e.g. `0x0F`)
+returns no reply and the route reports `{"ok": false,
+"error": "timeout"}`.
+
+**Response 200 (success)**:
+```jsonc
+{
+  "ok": true,
+  "mac": "AABBCC",
+  "key": "wled_fps",
+  "value": 60                          // scalar OR
+                                        // { "start": 0, "stop": 18 } for
+                                        // uint16-pair shapes
+}
+```
+
+**Response 200 (timeout / no reply)**:
+```jsonc
+{ "ok": false, "mac": "AABBCC", "key": "wled_fps", "error": "timeout" }
+```
+
+**Errors**: 400 (missing/invalid mac/key, broadcast not allowed,
+option not readable); 404 (device not found); 500 (controller
+missing the read service — should not occur on a healthy build).
+
+Bypasses the global TaskManager gate so the dialog can fire
+several reads in quick succession during its open pass without
+blocking other operator actions.
+
+### `POST /api/specials/config/import`
+
+Adopt the device's reported value into the host's
+`dev.specials[<key>]` **without** sending an `OPC_CONFIG` packet.
+Used by the Device Options dialog's "Import device" button when
+the operator chooses to accept the device-side value rather than
+push the host-side value to the device.
+
+**Request body**:
+```jsonc
+{
+  "mac":   "AABBCC",
+  "key":   "wled_fps",
+  "value": 60                          // matches the option's scalar/pair shape
+}
+```
+
+**Response 200**:
+```jsonc
+{
+  "ok": true,
+  "mac": "AABBCC",
+  "key": "wled_fps",
+  "value": 60,
+  "written": ["wled_fps"]              // flat keys actually persisted
+                                        // (two for uint16-pair shapes)
+}
+```
+
+**Errors**: 400 (missing fields, option not supported, value
+validation failed); 404 (device not found).
 
 ### `POST /api/config`
 
@@ -612,8 +689,25 @@ At least one of `doFirmware` / `doPresets` / `doCfg` must be true
 `skipValidation=1` in WLED's `/update` form, bypassing WLED's
 release-name check — used when migrating between firmware forks.
 
-**Response 200**: `{ "ok": true, "task": <task snapshot> }`. Task
-`meta` carries `{stage, index, total, retries, addr, message, baseUrl}`.
+**Response 200**: `{ "ok": true, "task": <task snapshot> }`. The
+`fwupdate` task's `meta` carries the per-stage pointer
+`{stage, index, total, retries, addr, attempt?, message, baseUrl}`
+plus two §9 fields the WebUI's progress panel relies on:
+
+* `macs: string[]` — the planned target list captured at Start. The
+  dialog's re-entry path restores row identity from this verbatim, so
+  a header re-entry shows the right rows even if the operator changed
+  the device selection since.
+* `deviceState: { [addr]: "queued" | "running" | "ok" | "error" }` —
+  authoritative per-device row state, mutated as each device
+  transitions through `RACELINK_AP_ON` → `WAIT_HTTP` → `UPLOAD_FW` →
+  `DEVICE_DONE` (or `DEVICE_ERROR`). Each emit carries a fresh shallow
+  copy so a slow SSE consumer cannot see a future mutation aliased into
+  an earlier event.
+
+The two new explicit terminal stages (`DEVICE_DONE`, `DEVICE_ERROR`)
+fire immediately after each per-device terminal so a row flips to
+`ok` / `error` without waiting for the next addr to advance.
 
 #### WiFi sub-body shape
 
@@ -693,7 +787,7 @@ TaskManager job named `presets_download`. Same WiFi sub-body as
 
 ## RaceLink-native presets (RL presets)
 
-RL presets are parameter snapshots driven by `OPC_CONTROL_ADV`.
+RL presets are parameter snapshots applied via `OPC_CONTROL`.
 See Glossary § "Preset" for the disambiguation between RL preset
 and WLED preset.
 
@@ -787,23 +881,54 @@ tooltip. Used by the scene editor frontend.
       },
       /* + canonical kind metadata: label, target_kinds, defaults, ... */
     },
-    /* wled_preset, wled_control, startblock, delay, sync, offset_group */
+    /* wled_preset, rl_effect, startblock, delay, sync, offset_group */
   ],
-  "flag_keys":     ["arm", "armOnSync", "applyOnSync", ...],
-  "target_kinds":  ["group", "device"],
+  // Per §13 both schema endpoints serve the user-intent flag list
+  // from ``racelink.domain.flags.USER_FLAG_DEFS`` so the RL-preset
+  // editor and the per-action override block render identical labels.
+  "flags": [
+    { "key": "arm_on_sync",   "label": "Arm on SYNC" },
+    { "key": "force_tt0",     "label": "Force TT=0" },
+    { "key": "force_reapply", "label": "Force reapply" },
+    { "key": "offset_mode",   "label": "Offset mode" }
+  ],
+  // Per §8b every editor-rendered enum carries an operator-facing
+  // label alongside the wire value — no hard-coded strings on the
+  // frontend.
+  "target_kinds": [
+    { "value": "broadcast", "label": "Broadcast" },
+    { "value": "groups",    "label": "Group" },
+    { "value": "device",    "label": "Device" }
+  ],
+  "container_target_kinds": [
+    { "value": "broadcast", "label": "Broadcast" },
+    { "value": "groups",    "label": "Group" }
+  ],
   "offset_group": {
-    "max_groups":   16,
-    "max_children": 4,
+    "max_groups":   64,
+    "max_children": 16,
     "group_id":     { "min": 0, "max": 254 },
-    "offset_ms":    { "min": -32768, "max": 32767 },
-    "modes":        ["stagger_ms", "stagger_seq", "stagger_offset"],
-    "base_ms":      { "min": -32768, "max": 32767 },
-    "step_ms":      { "min": -32768, "max": 32767 },
-    "center":       { "min": 0, "max": 254 },
-    "cycle":        { "min": 1, "max": 255 },
-    "supports_all_groups": true,
-    "child_kinds":         ["wled_preset", "rl_preset", "wled_control"],
-    "child_target_kinds":  ["scope", "group", "device"]
+    "offset_ms":    { "min": 0, "max": 65535 },
+    // ``modes`` carries the formula picker labels + descriptions
+    // sourced from ``OFFSET_FORMULA_MODE_LABELS``.
+    "modes": [
+      { "value": "none",     "label": "none",     "description": "no per-group offset" },
+      { "value": "linear",   "label": "linear",   "description": "base + gid · step" },
+      { "value": "vshape",   "label": "vshape",   "description": "base + |gid − center| · step" },
+      { "value": "modulo",   "label": "modulo",   "description": "base + (gid mod cycle) · step" },
+      { "value": "explicit", "label": "explicit", "description": "per-group table" }
+    ],
+    "base_ms":             { "min": -32768, "max": 32767 },
+    "step_ms":             { "min": -32768, "max": 32767 },
+    "center":              { "min": 0, "max": 254 },
+    "cycle":               { "min": 1, "max": 255 },
+    "supports_broadcast_target": true,
+    "child_kinds":         ["rl_preset", "wled_preset", "rl_effect"],
+    "child_target_kinds":  [
+      { "value": "broadcast", "label": "Broadcast" },
+      { "value": "groups",    "label": "Group" },
+      { "value": "device",    "label": "Device" }
+    ]
   },
   "lora": { /* SF, BW, CR, preamble, sync byte */ }
 }

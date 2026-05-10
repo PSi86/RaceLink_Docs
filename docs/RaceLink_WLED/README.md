@@ -22,13 +22,15 @@ This repository is focused on the **WLED-based node side** of the RaceLink ecosy
 - ready-to-use **PlatformIO build profiles** for supported hardware variants
 - board-specific compile-time settings such as:
   - wireless modem selection
-  - SPI pin definitions
+  - SPI pin **defaults** (overridable at runtime — see below)
   - LED pin and strip configuration
   - selected WLED feature flags
   - battery usermod configuration
   - optional e-paper display support
 
-At the moment, the hardware-specific pin mappings are still defined in the build profiles. In a future revision, these settings may be moved into the WLED usermod configuration UI.
+The radio control pins and the optional e-paper bus and control pins are now **runtime-configurable** through the WLED settings UI. The build-profile `-D RACELINK_PIN_*` and `-D RACELINK_EPAPER_*` flags become per-target *defaults* — first boot on a freshly-flashed device picks the correct pins automatically, and operators can override individual pins later without re-flashing. See [`pin-config.md`](pin-config.md) for the operator-facing flow.
+
+The radio chip family (SX1262 vs LLCC68) remains a compile-time choice; see the [radio-modules developer guide](radio-modules.md) for the rationale and how to extend support.
 
 ---
 
@@ -270,7 +272,9 @@ Verify that the selected profile contains the correct `custom_usermods` entry an
 
 ### Wrong pin mapping or non-working radio
 
-Check the `RACELINK_PIN_*` definitions and modem selection in the chosen build profile.
+The radio pins are runtime-overridable via **Config → Usermod Settings → RaceLink → pins** in the WLED Web UI; see [`pin-config.md`](pin-config.md). If the saved values look correct and the radio still fails to initialise, check the `RACELINK_PIN_*` defaults and the modem selection (`-D RACELINK_SX1262` vs `-D RACELINK_LLCC68`) in the chosen build profile.
+
+If the WLED **Info** panel shows `RaceLink Init: FAIL` immediately after boot, this is usually a PinManager conflict — another WLED feature (most often an LED bus) has already claimed one of the configured pins. Resolution steps are in [`pin-config.md`](pin-config.md) §"PinManager conflict troubleshooting".
 
 ### Wrong battery reading
 
