@@ -11,67 +11,24 @@ on the LED nodes" without assuming you've seen the source.
 
 ## Glossary
 
-The WebUI uses these terms consistently. Memorising the four
-**bold** ones gets you 90% of the way through the rest of the doc.
+Four terms are needed before the next section makes sense:
 
 * **Device** — one piece of RaceLink hardware (a WLED node, a
   starting-block, etc.). Identified by its 12-character MAC
-  address; the host shows the last 6 in the table for
-  brevity. Has a *type* (which determines what it can do — see
-  *capability* below).
+  address; the host shows the last 6 in the table for brevity.
 * **Group** — a named bucket of devices. Operators usually group
   by physical location ("Pit Wall", "Start Line", "Tower 3"). The
   group is what most scene actions target — sending a packet to
   a group broadcasts to every device whose `groupId` matches.
-* **Group `0` / "Unconfigured"** — the synthetic group every
-  newly-discovered device starts in. Devices in group 0 cannot
-  be the target of a scene action; assign them to a real group
-  before you save scenes. The scene editor automatically hides
-  group 0 from its dropdowns.
-* **Capability** — what a device can do, derived from its type.
-  Today: `WLED` (LED control), `STARTBLOCK` (race start
-  hardware). A starting-block is also `WLED`-capable; a plain
-  WLED node is not `STARTBLOCK`-capable. The scene editor
-  filters target dropdowns by capability so you can't pick a
-  non-capable target by accident.
-* **Preset** — *two distinct things* with the same word, sadly:
-  * **WLED preset** — a numeric slot (0–255) on a WLED node's
-    own preset list, set up via WLED's web interface. Apply via
-    the `Apply WLED Preset` scene action, which sends an
-    `OPC_PRESET` packet carrying just the slot number.
-  * **RL preset** — a RaceLink-native named snapshot of effect
-    parameters (mode, speed, intensity, colours, etc.). Stored
-    on the host. Apply via `Apply RL Preset`; the host
-    materialises the parameters and sends an `OPC_CONTROL`
-    packet.
 * **Scene** — a saved playlist of *actions* that runs in order.
   Persisted on the host; runnable via the Run button on the
   scenes page.
-* **Action** — one step in a scene. Kinds:
-  * `Apply WLED Preset` — load a numeric WLED preset on the
-    target.
-  * `Apply RL Preset` — load an RL preset (effect parameters)
-    on the target.
-  * `Apply RL Effect` — direct effect parameters in-line
-    (no separate preset record).
-  * `Startblock Control` — send a starting-block program.
-  * `SYNC (fire armed)` — fire all devices waiting on
-    arm-on-sync.
-  * `Delay` — host-side wait between actions.
-  * `Offset Group` — container action that runs its children
-    with per-group time offsets (e.g. a chase / wave effect).
-* **Offset Group** — the most powerful action kind: lets you
-  fire the same effect on N groups but with each group offset
-  by a few ms so you get a wave / cascade effect instead of a
-  simultaneous fire.
-* **Specials** — per-device-type configuration knobs (e.g.
-  startblock display brightness, WLED-specific options). Edit
-  via the device's Specials dialog.
-* **Master pill** — the coloured badge in the page header
-  showing the current gateway state (IDLE / TX / RX / ERROR).
-  Hover for the full explanation.
-* **Gateway** — the USB dongle that bridges the host to the
-  LoRa fleet. The host owns it exclusively while running.
+* **Action** — one step in a scene (apply a preset, fire SYNC,
+  delay, run an offset group, etc.).
+
+The full vocabulary (Preset variants, Capability, Specials,
+Master pill, Offset Group, Group 0 / Unconfigured, Headless Mode,
+Indicator, Gateway) is in the [Glossary](../glossary.md).
 
 ## End-to-end workflow
 
@@ -256,7 +213,17 @@ Open the **Scenes** page (link in the header). Click **+ New**
 in the sidebar to start a new draft.
 
 * Set the **Label** (free-form text).
-* Click **Add action** to append actions in order.
+* Click **Add action** at the bottom of the list to append a new
+  action. To insert an action in the middle of an existing scene,
+  hover the gap between two rows — a thin **+ Insert action** chip
+  appears in the gap; clicking it opens a compact kind picker right
+  there, so you don't have to append at the bottom and drag the
+  new row up.
+* Use the **Duplicate** icon on any action row to clone it directly
+  below the original. Handy for repeating a preset with a different
+  target, or building chains of similar steps without re-entering
+  every field. Inside an `Offset Group`, the same Duplicate button
+  is available on each child row.
 * Each action picks a **kind** (Apply RL Preset, Apply WLED
   Preset, Sync, Delay, Offset Group, etc.) and configures its
   target and parameters via the [unified target
@@ -510,24 +477,78 @@ reconnects. Plug back in; the host auto-retries.
 
 ### Firmware updates take minutes; let them finish
 
+**Plan ~30 seconds per device.** A 10-board fleet finishes in
+~5 min, a 4-board fleet in ~2 min. The dialog shows this estimate
+next to the **Start update** button so you can plan around it;
+during the run the progress panel ticks a live `elapsed ·
+~remaining left` counter that self-refines from observed times
+once at least one device has completed (then counts down
+monotonically at 1 s/s until the next refinement). The 30 s
+default reflects what operators consistently observe in the
+field; the per-phase breakdown below sums to a lower number, but
+the spread on `nmcli connect`, the rare reflash retry, and an
+occasional slow post-reboot identify shift the realistic mean
+higher.
+
 The Firmware Update dialog stays open during the OTA. Per device,
 the host:
 
 1. Sends an `OPC_CONFIG` to enable the device's WLED AP and waits
    for the device to ACK it (so the host doesn't start scanning
-   before the AP is actually broadcasting).
+   before the AP is actually broadcasting). The wait is **1.5 s
+   with one automatic retry** — a frame lost in the radio is
+   recovered without the legacy 8 s timeout penalty. If both
+   attempts time out, the device is marked failed and the workflow
+   moves on within ~3 s.
 2. Scans for any of the SSIDs in the dialog's SSID field
    (default `WLED_RaceLink_AP, WLED-AP` — newer firmware
    broadcasts the first, older firmware the second; the host
    takes the first one it sees) and connects with the password
-   from the dialog (default `wled1234`).
+   from the dialog (default `wled1234`). The host locks the
+   connect to the device's predicted AP-BSSID (ESP32 default
+   `STA_MAC + 1`) so it doesn't grab a previously-flashed node's
+   AP that's still in `nmcli`'s scan cache.
 3. Verifies the node's MAC via `/json/info`.
 4. Uploads the firmware binary.
 5. (Optional) Uploads `presets.json` and/or a `cfg.json`.
-6. Sends an `OPC_CONFIG` to disable the AP again.
-7. Disconnects the host's WiFi from the WLED AP and (if you
-   ticked "Restore previous host WiFi state after update")
-   turns the radio back off.
+6. Disconnects the host's WiFi from the rebooting device (with
+   `nmcli -w 0` — no wait for the 802.11 deactivation, the
+   device is already gone).
+7. Waits for the device to re-announce on the RaceLink radio
+   after its reboot, then waits for the standard auto-restore
+   path to push its old group ID back.
+8. **AP-Close cleanup is conditional.** On a clean upload the WLED
+   reboot drops the AP automatically, so the host doesn't send a
+   separate AP-disable. The AP-disable `OPC_CONFIG` (1.5 s × 2
+   attempts) only fires when AP-enable succeeded *but* a later
+   step failed (wrong OTA password, bad firmware binary,
+   HTTP 401 / 500 / timeout, …) — in that case the device is
+   still alive on LoRa, the AP is still broadcasting, and
+   leaving it up would expose the WLED AP credentials. If
+   AP-enable itself never ACKed there's nothing to close, so
+   the cleanup is skipped.
+
+After the last device, the host's WiFi radio is turned back off
+if you ticked **Restore previous host WiFi state after update**.
+
+#### Where the time goes (per device, typical)
+
+| Phase | Duration |
+|---|---|
+| RaceLink AP-enable round-trip | ~0.3 s (single attempt) / up to 3 s on retry+fail |
+| Wait for AP to appear in scan | ~5 s |
+| `nmcli` connect (auth + DHCP) | ~2 s typical, up to ~10 s on Channel-6 contention |
+| Firmware HTTP `/update` (1.1 MB binary) | ~10 s |
+| Post-upload host-WiFi disconnect | ~0.1 s |
+| Device reboot → `IDENTIFY_REPLY` on radio | ~2 s |
+| Auto-restore `SET_GROUP` ACK | ~0.5 s |
+| AP-Close ACK (only on the *error-after-AP-open* path) | ~0.3 s typical, up to 3 s on retry+fail |
+| **Per-device subtotal (success path)** | **~20 s** |
+
+The estimate scales linearly. Larger fleets don't slow each device
+down — NM's scan-cache ages stale BSSIDs out at roughly the same
+rate they get added, so the per-device cost is independent of the
+fleet size for at least the first ~20 boards.
 
 No NetworkManager profile pre-creation is required — the host
 talks to `nmcli` directly. On a fresh Linux machine, run
@@ -549,10 +570,21 @@ thread) but you'll lose the per-device progress display until
 it finishes.
 
 If the update fails for one device, the dialog shows it red in
-the per-device list. The other devices continue (unless you
-ticked "Stop on error"). After the run, you can re-trigger
-just the failed device by selecting it and starting a new
-update.
+the per-device list **with the concrete failure message inline**
+(e.g. `Timeout waiting for CONFIG ACK from <MAC> (AP-enable)` or
+`HTTP 500 from /update: Firmware release name mismatch …`) — you
+no longer have to wait for the final summary to find out *why* a
+specific device failed. The other devices continue (unless you
+ticked "Stop on error"). After the run, you can re-trigger just
+the failed device by selecting it and starting a new update.
+
+When the run finishes, the summary panel shows a **Total time:
+M:SS** badge alongside the success / failed / skipped counts so
+you can compare actual versus estimated duration at a glance.
+The live timer during the run is anchored to the host's clock
+(server-computed `elapsed_s`) rather than to the browser's, so
+hosts without NTP sync no longer make the timer start ahead of
+0:00.
 
 ### Common OTA failure modes you might see
 

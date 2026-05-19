@@ -31,6 +31,8 @@ event: task
 data: {
   "name": "fwupdate",
   "state": "running",
+  "started_ts": 1716123456.78,
+  "elapsed_s": 12.4,
   "meta": {
     "stage": "UPLOAD_FW",
     "index": 3, "total": 8,
@@ -39,7 +41,10 @@ data: {
     "deviceState": {
       "AABBCC": "running",
       "DDEEFF": "ok",
-      "112233": "queued"
+      "112233": "error"
+    },
+    "deviceMessages": {
+      "DDEEFF": "Timeout waiting for CONFIG ACK from DDEEFF (AP-enable)"
     }
   }
 }
@@ -48,7 +53,7 @@ data: {
 | Event | Payload | Purpose |
 |---|---|---|
 | `refresh` | `{"what": [...]}` — list of refresh tokens | Tell the JS to reload some part of its model from the REST API. |
-| `task` | `{"name", "state", "meta": {...}, ...}` | Long-running task progress (Discover, Status poll, OTA, presets download). The frontend's `updateTask` dispatches by `name`. The `fwupdate` task's `meta` additionally carries `macs[]` (planned targets, captured at Start) and `deviceState` (per-device row state map) — see [`web-api.md` `POST /api/fw/start`](web-api.md#post-apifwstart) for the full shape and §9 in `frontend/POST_MIGRATION_CLEANUP.md` for the rationale. |
+| `task` | `{"name", "state", "meta": {...}, "elapsed_s", ...}` | Long-running task progress (Discover, Status poll, OTA, presets download). The frontend's `updateTask` dispatches by `name`. **Top-level** `elapsed_s` is the server-computed wall-clock seconds since `started_ts` (recomputed in every snapshot — frontends use this as the authoritative timer base to avoid host-vs-browser clock skew). The `fwupdate` task's `meta` additionally carries `macs[]` (planned targets, captured at Start), `deviceState` (per-device row state map: `queued`/`running`/`ok`/`error`/`reannounce_timeout`) and `deviceMessages` (per-device error string populated on the `error` transition, lets the live UI show the concrete failure without waiting for the final `result.errors[]` overlay) — see [`web-api.md` `POST /api/fw/start`](web-api.md#post-apifwstart) for the full shape and §9 in `frontend/POST_MIGRATION_CLEANUP.md` for the rationale. |
 
 The two event types are independent — a long-running task can
 update its `task` event many times without firing any `refresh`

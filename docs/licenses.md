@@ -25,8 +25,8 @@ Copyright (c) 2026 PSi86
 ## Licence of this documentation set
 
 The consolidated copies here are derived from the source documents
-listed in [`sources.md`](sources.md). New files written for this
-consolidation (`README.md`, `glossary.md`, `versioning.md`,
+in the four sibling repositories listed above. New files written for
+this consolidation (`README.md`, `glossary.md`, `versioning.md`,
 `contributing.md`, `changelog.md`, `troubleshooting.md`, the
 per-component `operator-setup.md` files, and the `reference/`
 documents) are released under the same MIT licence as the four
@@ -36,5 +36,4 @@ source repositories.
 
 The third-party libraries and dependencies (RadioLib, U8g2, official
 WLED, Flask, Werkzeug, etc.) carry their own licences and are NOT
-redistributed by this docs set. See
-[`sources.md`](sources.md) § "What was deliberately NOT included".
+redistributed by this docs set.

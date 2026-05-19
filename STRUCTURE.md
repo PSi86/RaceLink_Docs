@@ -35,7 +35,21 @@ Two visibility tiers exist in this repo:
   * `_private/` — ADR drafts (`_private/adr-drafts/`) and the local
     plan archive (`_private/plans/`).
 
-The three tables below cover only `docs/` (the public set).
+A small set of files inside `docs/` is **on disk but excluded from
+the built site** via `exclude_docs:` in [`mkdocs.yml`](mkdocs.yml):
+
+* `docs/sources.md` — provenance ledger. Tracks per-file origin
+  during the consolidation. Useful for AI tooling and maintainers
+  rebuilding context; not useful to end users. Lives at a stable
+  path so it can be referenced from `CLAUDE.md` across sessions,
+  but never appears at a public URL.
+* `docs/concepts/index.md` — landing page of the retired "Concepts"
+  tab. The two surviving concepts (opcodes, deterministic effects)
+  are listed under Reference; the index page is kept on disk in
+  case the section is reinstated.
+
+The three tables below cover the navigable public set plus the
+excluded-but-on-disk files (flagged where they appear).
 
 ---
 
@@ -48,13 +62,15 @@ middle column; cross-references in the right column.
 |---|---|---|
 | **System overview** (architecture diagram, components) | [`docs/index.md`](docs/index.md) | host/README, gateway/README, wled/README |
 | **Glossary** (Preset / Effect / Group / Capability / Master pill / etc.) | [`docs/glossary.md`](docs/glossary.md) | — |
-| **Concepts** — pragmatic OPC_CONTROL/OFFSET/SYNC explanation | [`docs/concepts/opcodes.md`](docs/concepts/opcodes.md) | PROTOCOL.md, OPERATOR_GUIDE.md |
+| **Opcodes** — pragmatic OPC_CONTROL/OFFSET/SYNC explanation | [`docs/concepts/opcodes.md`](docs/concepts/opcodes.md) (listed under Reference in nav) | reference/wire-protocol.md, RaceLink_Host/operator-guide.md |
 | **Host WebUI structure / lifecycle** | [`docs/RaceLink_Host/webui-guide.md`](docs/RaceLink_Host/webui-guide.md) | UI_CONVENTIONS.md, OPERATOR_GUIDE.md |
 | **First-time operator workflow** | [`docs/RaceLink_Host/operator-guide.md`](docs/RaceLink_Host/operator-guide.md) | gateway/OPERATOR, wled/OPERATOR |
 | **Standalone install (Win + Linux)** | [`docs/RaceLink_Host/standalone-install.md`](docs/RaceLink_Host/standalone-install.md) | host/README |
 | **RotorHazard plugin install** | [`docs/RaceLink_RH_Plugin/README.md`](docs/RaceLink_RH_Plugin/README.md) | rh-plugin/OPERATOR |
 | **Gateway operator setup** | [`docs/RaceLink_Gateway/operator-setup.md`](docs/RaceLink_Gateway/operator-setup.md) | host/docs/OPERATOR_GUIDE |
 | **WLED node operator setup** | [`docs/RaceLink_WLED/operator-setup.md`](docs/RaceLink_WLED/operator-setup.md) | wled/README |
+| **Headless Mode (operator)** | [`docs/RaceLink_WLED/operator-setup.md`](docs/RaceLink_WLED/operator-setup.md) §"Headless Mode" | glossary §Headless Mode; reference/wire-protocol §`P_Headless` |
+| **Indicators (operator + reference)** | [`docs/RaceLink_WLED/operator-setup.md`](docs/RaceLink_WLED/operator-setup.md) §"Indicators" | glossary §Indicator; reference/wire-protocol §`P_Indicate` |
 | **RotorHazard plugin operator (panels, quickbuttons)** | [`docs/RaceLink_RH_Plugin/operator-setup.md`](docs/RaceLink_RH_Plugin/operator-setup.md) | host/ARCHITECTURE §"UI Scope Matrix" |
 | **Authoring scenes (operator)** | [`docs/RaceLink_Host/operator-guide.md`](docs/RaceLink_Host/operator-guide.md) §"Author scenes" | reference/SCENE_FORMAT |
 | **Offset Mode (operator perspective)** | [`docs/RaceLink_Host/operator-guide.md`](docs/RaceLink_Host/operator-guide.md) §6a | host/docs/PROTOCOL §"OPC_OFFSET" |
@@ -97,7 +113,7 @@ middle column; cross-references in the right column.
 | **RH plugin manifest dependency format (decision)** | [`docs/RaceLink_RH_Plugin/adr-0001-manifest-dependency.md`](docs/RaceLink_RH_Plugin/adr-0001-manifest-dependency.md) | rh-plugin/docs/manifest-dependency-format |
 | **RH plugin release flow** | [`docs/RaceLink_RH_Plugin/release-playbook.md`](docs/RaceLink_RH_Plugin/release-playbook.md) | VERSIONING |
 | **Development workflow (this repo)** | The contract is encoded directly in this `STRUCTURE.md` (the three tables below); maintainer-side workflow notes live under `_meta/contributor/` (local only, gitignored) | — |
-| **Audit history (what was consolidated, what was harvested)** | [`docs/sources.md`](docs/sources.md) — public provenance ledger; full audit + harvest notes live under `_meta/maintainer/` (local only, gitignored) | — |
+| **Audit history (what was consolidated, what was harvested)** | [`docs/sources.md`](docs/sources.md) — provenance ledger, **excluded from the built site** (on-disk only, for AI/maintainer context); full audit + harvest notes live under `_meta/maintainer/` (local only, gitignored) | — |
 
 ---
 
@@ -110,6 +126,8 @@ paths are inside the matching component repository (e.g.
 | If you change … | Update … |
 |---|---|
 | `racelink_proto.h` (any of the 3 byte-identical copies — Host, Gateway, WLED) | `docs/reference/wire-protocol.md` opcode table + body layout tables; `docs/glossary.md` if a new opcode/flag is named; `docs/RaceLink_Host/developer-guide.md` §"Adding a new wire opcode" if the *process* changed |
+| `racelink_headless.h` (Headless-Mode scene catalog — byte-identical across all 3 component repos) | `docs/RaceLink_WLED/operator-setup.md` §"Headless Mode" → Scenes table; `docs/RaceLink_Host/developer-guide.md` §"Adding a new Headless scene to the catalog"; `docs/glossary.md` §"Headless Mode" if semantics change |
+| `racelink_indicators.h` (Indicator catalog — byte-identical across all 3 component repos) | `docs/RaceLink_WLED/operator-setup.md` §"Indicators" → Catalog table; `docs/RaceLink_Host/developer-guide.md` §"Adding a new Indicator to the catalog"; `docs/glossary.md` §"Indicator" if semantics change; `docs/reference/wire-protocol.md` §`P_Indicate` if the cancel-via-`durationSec=0` contract changes |
 | `RaceLink_Host/racelink/protocol/{packets,codec,rules}.py` | `docs/reference/wire-protocol.md` (the rules table mirrors `rules.RULES`); cross-check that the body-builder doc matches `packets.build_*` |
 | `RaceLink_Host/racelink/transport/{gateway_serial,framing}.py` | `docs/RaceLink_Host/architecture.md` §"Transport Interface" + §"Threading Model" if locks/condition variables change; `docs/reference/wire-protocol.md` §"USB framing" / §"Host ↔ Gateway flow control" |
 | `RaceLink_Host/racelink/services/scenes_service.py` | `docs/reference/scene-format.md` (KIND_* enum, validator invariants); `docs/RaceLink_Host/developer-guide.md` §"Adding a new scene-action kind" if the checklist changes |
@@ -145,7 +163,9 @@ paths are inside the matching component repository (e.g.
 | `RaceLink_Gateway/src/main.cpp` (state machine, USB framing, autosync) | `docs/reference/wire-protocol.md` §"Gateway state machine" / §"Host ↔ Gateway flow control"; `docs/RaceLink_Gateway/README.md` |
 | `RaceLink_Gateway/src/racelink_transport_core.h` | `docs/reference/wire-protocol.md`; `docs/RaceLink_Gateway/README.md` |
 | `RaceLink_Gateway/platformio.ini` (board, radio defaults) | `docs/RaceLink_Gateway/README.md` §"Hardware and build target"; `docs/RaceLink_Gateway/operator-setup.md` §"Radio defaults" |
-| `RaceLink_WLED/usermods/racelink_wled/racelink_wled.{h,cpp}` | `docs/RaceLink_WLED/operator-setup.md`; `docs/concepts/deterministic-effects.md` if effect determinism changes |
+| `RaceLink_WLED/racelink_wled.{h,cpp}` (usermod source at repo root) | `docs/RaceLink_WLED/operator-setup.md`; `docs/concepts/deterministic-effects.md` if effect determinism changes |
+| `RaceLink_WLED/racelink_headless.h` (Headless scene catalog) | `docs/RaceLink_WLED/operator-setup.md` §"Headless Mode"; `docs/RaceLink_Host/developer-guide.md` §"Where the headless state lives"; `docs/glossary.md` if semantics change |
+| `RaceLink_WLED/racelink_indicators.h` (Indicator catalog) | `docs/RaceLink_WLED/operator-setup.md` §"Indicators"; `docs/glossary.md` if semantics change |
 | `RaceLink_WLED/build_profiles/*.platformio_override.ini` (new or changed) | `docs/RaceLink_WLED/README.md` §"Supported hardware profiles"; `docs/RaceLink_WLED/operator-setup.md` §"Default factory state" if defaults changed |
 | `RaceLink_WLED/.github/workflows/release.yml` | `docs/RaceLink_WLED/README.md` §"GitHub release workflow"; `docs/versioning.md` |
 | `RaceLink_RH_Plugin/custom_plugins/racelink_rh_plugin/manifest.json` | `docs/RaceLink_RH_Plugin/adr-0001-manifest-dependency.md`; `docs/RaceLink_RH_Plugin/manifest-dependency-format.md` |
@@ -173,7 +193,7 @@ authoritative file followed by supporting code.
 | `docs/changelog.md` | each repo's GitHub releases page (manually curated mirror) |
 | `docs/troubleshooting.md` | (aggregator — no single backing file) |
 | `docs/licenses.md` | each repo's `LICENSE` file |
-| `docs/sources.md` | (provenance ledger — no backing code) |
+| `docs/sources.md` | (provenance ledger — no backing code; **excluded from the built site** via `exclude_docs:` in `mkdocs.yml`) |
 | `docs/RaceLink_Host/README.md` | `RaceLink_Host/racelink/__init__.py` (`__version__`); `RaceLink_Host/racelink/app.py`; `RaceLink_Host/racelink/web/__init__.py` |
 | `docs/RaceLink_Host/architecture.md` | `RaceLink_Host/racelink/app.py`, `controller.py`, `racelink/services/*.py`, `racelink/state/repository.py`, `racelink/web/sse.py`, `racelink/transport/gateway_serial.py` |
 | `docs/RaceLink_Host/operator-guide.md` | (operator-facing aggregator, no single backing file; section §6a backed by `racelink/services/scene_runner_service.py` + WLED usermod) |
@@ -186,7 +206,7 @@ authoritative file followed by supporting code.
 | `docs/RaceLink_Gateway/README.md` | `RaceLink_Gateway/src/main.cpp`, `racelink_transport_core.h`, `platformio.ini` |
 | `docs/RaceLink_Gateway/operator-setup.md` | (operator aggregator; OLED behaviour from `RaceLink_Gateway/src/main.cpp`) |
 | `docs/RaceLink_WLED/README.md` | `RaceLink_WLED/build_profiles/*.platformio_override.ini`; `RaceLink_WLED/.github/workflows/release.yml`; `RaceLink_WLED/version.json` |
-| `docs/RaceLink_WLED/operator-setup.md` | `RaceLink_WLED/usermods/racelink_wled/racelink_wled.{h,cpp}` (factory state, pairing) |
+| `docs/RaceLink_WLED/operator-setup.md` | `RaceLink_WLED/racelink_wled.{h,cpp}` (factory state, pairing); `RaceLink_WLED/racelink_headless.h` (Headless Mode scene catalog, probe constants); `RaceLink_WLED/racelink_indicators.h` (Indicator catalog) |
 | `docs/concepts/deterministic-effects.md` | upstream WLED `wled00/FX.cpp` per-effect; `RaceLink_Host/racelink/domain/wled_deterministic.py` (the host-side audited set) |
 | `docs/RaceLink_RH_Plugin/README.md` | `RaceLink_RH_Plugin/custom_plugins/racelink_rh_plugin/manifest.json`; `pyproject.toml` |
 | `docs/RaceLink_RH_Plugin/operator-setup.md` | `RaceLink_RH_Plugin/custom_plugins/racelink_rh_plugin/plugin/ui.py`; `actions.py`; `bootstrap.py` |

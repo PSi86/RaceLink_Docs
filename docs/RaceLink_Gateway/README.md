@@ -81,28 +81,15 @@ The current build configuration also defines the gateway as:
 
 ## Communication overview
 
-The gateway firmware handles two communication sides:
+The gateway bridges two transports: USB framing toward the host and a
+RaceLink packet protocol over LoRa toward the wireless nodes. Both are
+specified in the cross-component spec — see
+[Wire protocol](../reference/wire-protocol.md) for USB framing,
+opcodes, header layout, and the gateway state machine.
 
-### USB side
-On the USB side, the gateway exchanges framed data with the host software. The firmware comments describe a frame structure of:
-
-```text
-[0x00][LEN][TYPE][DATA...]
-```
-
-This is used for host-to-gateway and gateway-to-host communication.
-
-### Wireless side
-On the wireless side, the gateway uses a RaceLink packet protocol and radio transport layer to transmit commands and receive responses from wireless nodes.
-
-The current source also defines radio defaults such as:
-
-- frequency: `867700000 Hz`
-- bandwidth: `125 kHz`
-- spreading factor: `SF7`
-- coding rate denominator: `5` (4/5)
-- preamble: `8`
-- sync word: `0x12`
+LoRa radio defaults (frequency, bandwidth, SF, coding rate, sync word)
+live in the firmware source and are surfaced for operators in
+[Gateway operator setup](operator-setup.md).
 
 ---
 

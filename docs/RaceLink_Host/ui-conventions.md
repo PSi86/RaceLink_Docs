@@ -21,6 +21,7 @@ adding them here.
 | **Create**   | Make a *new* record. Pair with a "+" affordance on toolbars.         | `+ New` group, `+ New` preset    |
 | **Move**     | Mutate group / category membership of a selected set.                | Move selected to group           |
 | **Send**     | Dispatch a single command to one device and wait for ACK.            | Send (Node Config), Send special |
+| **Locate**   | Fire a transient visual indicator on a device so the operator can spot it physically. | Locate (Battery dialog row)      |
 | **Run**      | Execute a saved scene end-to-end.                                    | Run scene                        |
 | **Start**    | Begin a long-running workflow (multi-stage, multi-second, async).    | Start (Discover), Start Update   |
 | **Re-sync**  | Re-broadcast existing host state to the radio fleet.                 | Re-sync group config             |
@@ -67,6 +68,86 @@ refactor — too many things were "Apply X". As of the C9 sweep:
 If you find yourself reaching for `Apply` on a button, consider
 whether `Send` (single command), `Move` (membership), or `Save`
 (persistence) fits better.
+
+## Modal-locked dialogs (long-running operations)
+
+Dialogs that wrap a multi-second background task which mutates
+operator-affecting state (host Wi-Fi switched to a device AP, partial
+multi-device flash, etc.) **lock close** while the task runs. The
+operator cannot accidentally dismiss the status view via outside-click,
+Esc, the corner X, browser back/forward, refresh, or tab close.
+
+The pattern has three pieces:
+
+* **`<DialogContent :lock-close="<busy>">`** — outside-click + Esc are
+  `preventDefault`-ed, X button hidden. Reusable across all dialogs.
+* **`useTaskNavigationGuard(() => <busy>, { reason })`** — combines
+  `useBeforeUnloadGuard` with `onBeforeRouteLeave`. Native confirm
+  while busy; styled in-app modal is not technically possible for
+  `beforeunload` (browser limitation).
+* **Cancel button + summary phase** — the only close path. The
+  button calls `gateway.cancelTask()` (`POST /api/task/cancel`).
+  After the task lands in `done`/`error` the dialog auto-flips to a
+  summary phase that renders the result breakdown; a Close button
+  appears only there.
+
+Shipped users: firmware update (full pattern), presets download
+(full pattern), discovery (lighter variant: lock only, no Cancel
+button — the scan is short and Wi-Fi-free). The developer-guide
+section ["Modal-locked dialogs"](developer-guide.md#modal-locked-dialogs-cancel-with-summary-pattern)
+has the wiring checklist.
+
+## Click-to-locate (Indicate)
+
+Operators need a way to physically spot a device after the host has
+already paired it (e.g. "which of these 12 RaceLink Nodes is the one
+showing low battery on the screen?"). The host wires this via the
+`OPC_INDICATE` opcode + `IND_IDENTIFY` indicator catalog row — a
+short magenta strobe (~5 s) that the receiver overlays on its segment
+and then restores the prior state. Two click sites trigger it; both
+funnel through `POST /api/devices/indicate`.
+
+**Naming note**: the wire opcode and the host route both use *indicate*;
+*identify* is reserved for the RF-discovery opcode `OPC_DEVICES`
+(pairing flow). The operator-facing verb in the UI is **Locate**, which
+is what shows up on buttons, tooltips and toasts.
+
+| Site                                                | Affordance                              |
+|-----------------------------------------------------|-----------------------------------------|
+| Device-name text in `DeviceTable.vue` (Devices page) | Clickable span on hover (`cursor: pointer` + underline), but only when the row is **not** in rename-edit mode. The Pencil button keeps owning the rename gesture; the bare name owns Locate. |
+| "Locate" button per row in `BatteryDevicesDialog.vue` | Explicit button at the right edge of each weak-battery row.                              |
+
+Wording conventions for both sites:
+
+* **Tooltip on hover** — context-rich, names the device:
+  * Name span: `Click to locate '<name-or-mac>' — flashes its LEDs ~5 s`
+  * Locate button: `Flash <name-or-mac>'s LEDs to locate it physically`
+* **Toast on click** — present-progressive, `useToast().show()`:
+  * `Locating <name-or-mac>…`
+* **Toast on backend failure** — `useToast().error()`:
+  * `Locate failed: <reason>`
+
+Implementation rules a new caller should follow:
+
+* **Debounce** repeated clicks on the same device with an `indicating`
+  `ref<Set<string>>()` — add `addr` on click-start, delete in
+  `finally`. A second click while the first is in flight is a no-op.
+  Prevents stacking duplicate frames on the gateway queue.
+* **Single-device call by default** — `apiPost('/api/devices/indicate', { macs: [addr] })`. The endpoint accepts `macs: [...]` (plural) so it scales to a "blink all weak devices" broadcast in the future, but per-row UX is the established pattern.
+* **No local state mutation** — the indicator is a transient visual
+  overlay; the device restores its pre-indicator state when
+  `durationSec` expires. Do **not** mark the device "identified" in
+  the store.
+* **No completion feedback expected** — the gateway never reports
+  whether the receiver applied the indicator. The toast on click is
+  the only sender-side affordance; the operator confirms visually.
+
+If a future click site wants a *different* indicator (e.g. a long
+"pair confirm" strobe), pass `indicator_type` + `duration_sec` to the
+same endpoint — they default to `IDENTIFY` (4) and 5 s respectively.
+The indicator catalog lives in `racelink_indicators.h` (synced across
+all four repos) with a hand-authored Python mirror in
+`racelink/domain/indicators.py`.
 
 ## Confirmation dialogs
 

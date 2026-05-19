@@ -102,6 +102,8 @@ The ASCII-only constants are below; on USB they appear after the
 | `OPC_CONTROL` | `0x08` | M2N | `OPC_ACK` | variable (3..21 B) | Direct effect parameters |
 | `OPC_OFFSET` | `0x09` | M2N | RESP_NONE | variable (2..7 B) | Configure offset for ARM_ON_SYNC / OFFSET_MODE |
 | `OPC_GET_CONFIG` | `0x0A` | M2N | same opcode N→M | `P_GetConfig` (1 B) → `P_Config` (5 B) | Read-back of an `OPC_CONFIG`-style property |
+| `OPC_HEADLESS` | `0x0B` | M2N | RESP_NONE | `P_Headless` (2 B) | Headless-Mode catalog trigger; receivers expand via the shared catalog in `racelink_headless.h`. Broadcast-shaped. Renamed from `OPC_SCENE` on 2026-05-17 to keep the `OPC_SCENE` name free for a future host-level RaceLink-Scene opcode; wire byte value `0x0B` is unchanged. |
+| `OPC_INDICATE` | `0x0C` | M2N | RESP_NONE | `P_Indicate` (2 B) | Short-lived status-indicator overlay; receivers expand via the shared catalog in `racelink_indicators.h`. Broadcast or unicast. |
 | `OPC_ACK` | `0x7E` | both | — | `ack body` (4 B) | Used as a reply only |
 
 `BODY_MAX` is 22 bytes; `OPC_CONTROL` is the first opcode that pushes
@@ -385,9 +387,9 @@ packed per-option in the same little-endian layout as the matching
   use a concrete `recv3`; the firmware drops broadcast receivers.
 * **Property-only.** Method codes (`0x01`–`0x04`, `0x0F`,
   `0x80`–`0x81`) are write-only; sending `OPC_GET_CONFIG` for them
-  produces **no reply** and the host's `send_and_wait_for_reply`
-  helper times out gracefully. The dialog renders the row's
-  device-side value as `device: ?` with a Retry button.
+  produces **no reply** and the host's `send_and_match` waiter times
+  out gracefully. The dialog renders the row's device-side value as
+  `device: ?` with a Retry button.
 * **Reply timing.** The firmware reads the property's *live*
   runtime value (not the override slot). For Policy A overrides
   this equals "override-or-compile-default"; for Policy B it equals
@@ -396,10 +398,104 @@ packed per-option in the same little-endian layout as the matching
   Device Options dialog's divergence check needs.
 * **Codec note.** The host's `parse_reply_event` decodes a 5-byte
   reply for opcode `0x0A` into a `GET_CONFIG_REPLY` event carrying
-  `option`, `data0..3`. The `PendingRequestRegistry` matches on
-  `(sender, opcode, option)` so two simultaneous reads for
-  different options on the same device cannot wake each other's
-  waiter (iteration-3 secondary discriminator).
+  `option`, `data0..3`. The `PendingMatcher` matches on
+  `(sender, expected_opcode, discriminator_field="option")` so two
+  simultaneous reads for different options on the same device cannot
+  wake each other's waiter (the secondary-discriminator field
+  preserves the iteration-3 fix under the unified matcher).
+
+### `P_Headless` — Headless-Mode catalog trigger (`OPC_HEADLESS`, 2 B fixed)
+
+```
+sceneId (1) | brightness (1)
+```
+
+> **Naming note.** Renamed from `OPC_SCENE` / `P_Scene` on 2026-05-17
+> so the bare term "Scene" stays free for a future host-level
+> RaceLink-Scene opcode (today's host-side RaceLink Scenes travel as
+> `OPC_CONTROL`; the host-level rename is a separate, later step).
+> Wire byte value `0x0B` and body layout are unchanged. The field
+> name `sceneId` and the receiver-side helper / enum names keep
+> "scene" terminology because each catalog row is internally still
+> called a "Headless scene".
+
+* `sceneId` — wire-stable identifier from the shared Headless catalog
+  in `racelink_headless.h::HeadlessSceneId` (`SCENE_OFFSET_BREATHE = 0`,
+  `SCENE_SOLID_RED = 1`, `SCENE_SOLID_GREEN = 2`, `SCENE_ALL_OFF = 3`,
+  `SCENE_RESTORE_BOOT_COLOR = 4`). Unknown ids on a receiver that
+  pre-dates the catalog row are silently dropped via
+  `findSceneById() == nullptr` — forward-compatible.
+* `brightness` — desired strip brightness while the scene runs.
+
+Receivers expand the row locally (fxMode, speed, intensity, color1,
+plus a per-group phase offset `base + groupId * step` for rows that
+declare `SCENE_FLAG_USE_OFFSET`). There is **no separate** `OPC_OFFSET`
+on the wire for Headless catalog triggers — the offset formula is
+part of the catalog row and applied receiver-side, which keeps the
+wire to a single packet per Headless trigger and avoids the
+single-slot TX queue race the naïve pre-emit would trigger.
+
+Reply: **none** (`RESP_NONE`). Always broadcast (`recv3 = FFFFFF`);
+group filtering does not apply — every receiver expands the row.
+
+`OPC_HEADLESS` is emitted exclusively by a device running in Headless
+Master mode (or by external Gateway-side software that includes
+`racelink_headless.h`). The wire body is identical regardless of
+which side built it.
+
+### `P_Indicate` — status-indicator overlay (`OPC_INDICATE`, 2 B fixed)
+
+```
+type (1) | durationSec (1)
+```
+
+* `type` — wire-stable identifier from the shared indicator catalog
+  in `racelink_indicators.h::IndicatorType`
+  (`IND_PAIR_CONFIRMED = 0`, `IND_PROBE_REJECTED = 1`,
+  `IND_HEADLESS_ENTER = 2`, `IND_HEADLESS_EXIT = 3`,
+  `IND_IDENTIFY = 4`). Unknown types are silently dropped —
+  forward-compatible.
+* `durationSec` — how long the overlay runs, in seconds (`0..255`).
+  **`durationSec == 0` is a cancel signal**: the receiver clears any
+  active indicator without showing a new one. Use it to abort a
+  long-running indicator from the Host without waiting for it to
+  expire.
+
+Receivers render the indicator as a **frame-buffer overlay** via
+WLED's `Usermod::handleOverlayDraw()` callback (fires after every
+segment effect has rendered and blended, immediately before
+`strip.show()`). The underlying effect's segment mode, palette,
+colour slots, and `SEGENV` runtime state stay untouched — the
+strobe is purely a pixel-level overwrite for the duration of the
+overlay. Consequences:
+
+* **Fleet phase sync is preserved automatically.** Time-driven
+  effects (Traffic Light, etc.) continue advancing their phase
+  during the overlay; on indicator expiry the device is in the
+  exact phase its fleet-mates are in, with zero catch-up cycling.
+* **No snapshot / restore.** The pre-indicator visual reappears
+  the instant `active` flips back to `false` — there's nothing
+  saved that needs restoring.
+* **New wire commands during the overlay** (`OPC_HEADLESS`,
+  `OPC_CONTROL`, `OPC_PRESET`) take over the segment normally;
+  the host can also preempt by re-issuing `OPC_INDICATE` with a
+  new catalog row or with `durationSec == 0` to cancel.
+
+The catalog is **STROBE-only** (fxMode 23) by design and pinned to
+the WLED-effective speed range `235..252` on a 3-tier urgency
+code: 235 = slow / positive, 245 = medium / informational /
+operator action, 250 = fast / error. Colour encodes the event
+category via channel dominance (green = success, blue =
+promotion, red = error, red+blue = operator-locate, mixed warm =
+demotion). Pure red / green / blue / white are deliberately
+avoided so an indicator cannot be confused with a normal scene
+colour. See
+[`RaceLink_WLED/operator-setup.md` §Indicators](../RaceLink_WLED/operator-setup.md#indicators)
+for the full catalog table and rendering details.
+
+Reply: **none** (`RESP_NONE`). Wire shape is identical for broadcast
+(`recv3 = FFFFFF`, e.g. fleet-wide IDENTIFY pulse) and unicast (a
+Host pinging one specific device); the firmware does not distinguish.
 
 ### Other bodies
 
@@ -691,8 +787,11 @@ applicable. Possible response policies:
 * `RESP_SPECIFIC` — receiver replies with a specific opcode (e.g.
   `OPC_DEVICES` → `IDENTIFY_REPLY`).
 
-The host's `send_and_wait_for_reply` uses this rule to set the
-`PendingRequestRegistry` matcher correctly.
+The host's `send_and_wait_with_retries` / `send_and_match` use this
+rule to populate the right `PendingMatcher` field
+(`expected_ack_of` for `RESP_ACK`, `expected_opcode` for
+`RESP_SPECIFIC`) — see
+[Reply Matching (PendingMatcher)](../RaceLink_Host/reply-matching.md).
 
 ## Versioning
 

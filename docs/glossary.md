@@ -104,25 +104,91 @@ to refactor further.
 
 The visual the WLED node shows immediately after power-up when WLED's
 *Apply preset at boot* setting is `0`: the `racelink_wled` usermod
-paints a Solid colour drawn at random from {red, green, blue} on the
-main segment so an operator can see the node is alive even in the
-absence of a paired gateway. The boot pick also seeds the
-physical-button click ring so the next two clicks cover the
-remaining two primaries before the cycle switches to random colours
-— this guarantees every primary is reachable from any boot
-position. When *Apply preset at boot* is non-zero, WLED's standard
-preset path runs untouched and the boot effect does not fire. See
+paints a **persisted Solid colour** on the main segment so an operator
+can see the node is alive and can visually identify a specific device
+across power cycles. The colour is rolled once on the very first boot
+(`esp_random() % 3` → red, green or blue), written to `cfg.json`, and
+reused on every subsequent boot. The operator can change it by walking
+the physical-button click cycle (R → G → B → random RGB); 10 s after
+the last click the currently-displayed colour is written back as the
+new boot colour. Random RGB picks are stored verbatim as a 3-byte
+triple and re-applied exactly at the next boot. The boot pick also
+seeds the physical-button click ring so the next two clicks cover the
+remaining two primaries before the cycle switches to random colours.
+When *Apply preset at boot* is non-zero, WLED's standard preset path
+runs untouched and the boot effect does not fire (the persisted colour
+is still kept in `cfg.json` and continues to drive
+`SCENE_RESTORE_BOOT_COLOR` over the wire). See
 [`RaceLink_WLED/operator-setup.md`](RaceLink_WLED/operator-setup.md)
-§"Boot effect" and §"Click colour cycle".
+§"Boot effect", §"Persistent boot colour" and §"Click colour cycle".
 
 ### Pairing visual feedback
 
-A direct effect call (Breathe, white) the WLED node renders after
-accepting `OPC_SET_GROUP` from a gateway. Replaces the prior
-preset-based feedback (legacy preset slot 11) so the operator can
-freely use all 250 WLED preset slots. See
+The `IND_PAIR_CONFIRMED` indicator (bright-teal STROBE, ~5 s) the WLED
+node renders after accepting `OPC_SET_GROUP` from a gateway. Replaces
+the prior preset-based feedback (legacy preset slot 11) so the
+operator can freely use all 250 WLED preset slots, and replaces the
+prior persistent-white-breath feedback so the node returns to its
+pre-pair visual after the indicator expires (the gateway is expected
+to push a scene/preset right after; if it doesn't, the device looks
+the same as any unpaired idle node). See
 [`RaceLink_WLED/operator-setup.md`](RaceLink_WLED/operator-setup.md)
-§"Pairing visual feedback".
+§"Pairing visual feedback" and §"Indicators".
+
+### Indicator
+
+A short-lived, animated visual overlay on the WLED node's main
+segment that signals a status event (pair confirmation, probe
+rejection, headless enter/exit, operator-initiated locate). Lives
+in a wire-stable catalog in `racelink_indicators.h` so all four
+component repos consume the same identifier table. Triggered
+either locally (e.g. `OPC_SET_GROUP` arrives → `IND_PAIR_CONFIRMED`
+for 5 s) or remotely via the `OPC_INDICATE` wire packet.
+
+The receiver renders the overlay via WLED's
+`Usermod::handleOverlayDraw()` callback — a per-frame
+pixel-overwrite that fires after the segment effect has rendered
+and before the LEDs are pushed. The underlying effect's segment
+mode, palette, colour slots, and `SEGENV` runtime state are
+**never touched**, so fleet phase sync is preserved automatically
+and the pre-indicator visual reappears the instant the overlay
+flag clears. A new wire command (`OPC_HEADLESS` / `OPC_CONTROL` /
+`OPC_PRESET`) preempts the overlay; passing `durationSec == 0`
+cancels it explicitly.
+
+The catalog is **STROBE-only** by design, pinned to the
+WLED-effective speed range `235..252` on a 3-tier urgency code
+(235 slow / positive, 245 medium / informational, 250 fast /
+error). Colour encodes the category via RGB channel dominance.
+Pure R / G / B / W are deliberately avoided so an indicator
+cannot be confused with a normal scene. See
+[`reference/wire-protocol.md` §`P_Indicate`](reference/wire-protocol.md#p_indicate-status-indicator-overlay-opc_indicate-2-b-fixed)
+and [`RaceLink_WLED/operator-setup.md` §"Indicators"](RaceLink_WLED/operator-setup.md#indicators).
+
+### Headless Mode
+
+An operating mode in which a single WLED node temporarily acts as the
+master for the rest of the fleet — assigning groups, broadcasting
+scenes and brightness changes — so a session can run without a
+Gateway+Host pair. Activated by a deliberate five-click gesture on the
+node's boot button after a 1.5-second `IDENTIFY_REPLY` probe verifies
+no real master is alive on the channel. The promotion is **persisted
+across reboots**: a power-cycled headless master re-runs the probe and
+re-claims the role if no real Gateway has taken over in the meantime,
+then proactively re-binds every previously paired slave via a
+spaced-out `SET_GROUP` sweep from its persistent registry (up to 40
+`(addr3, groupId)` records, 50 ms between sends). The master self-assigns **Group 1** while
+active; slaves are assigned from **Group 2** upward (Group 0 stays
+reserved for the unconfigured pool, 255 for the broadcast
+pseudo-group). A real Gateway **always wins** — any M2N traffic from a
+non-self sender (typically `OPC_SET_GROUP` from a Gateway that came
+back up, or its 30-second `OPC_SYNC` autosync) causes the headless
+master to step down immediately. Manual exit via the 5-click gesture
+clears the registry + counter + own group id synchronously; involuntary
+demotions (Gateway takeover / autosync detection) leave the registry
+intact for a possible later re-promotion. See
+[`RaceLink_WLED/operator-setup.md`](RaceLink_WLED/operator-setup.md)
+§"Headless Mode".
 
 ### Scene
 
@@ -231,9 +297,35 @@ wrong-direction frames.
 The current set includes:
 `OPC_DEVICES`, `OPC_SET_GROUP`, `OPC_STATUS`, `OPC_PRESET`,
 `OPC_CONFIG`, `OPC_SYNC`, `OPC_STREAM`, `OPC_CONTROL`, `OPC_OFFSET`,
-`OPC_GET_CONFIG`, plus `OPC_ACK` used as a reply only. See
+`OPC_GET_CONFIG`, `OPC_HEADLESS` (Headless-Mode catalog trigger),
+`OPC_INDICATE` (status-indicator overlay), plus `OPC_ACK` used as a
+reply only. See
 [`reference/wire-protocol.md`](reference/wire-protocol.md) §Opcodes for the full
 table.
+
+### `OPC_HEADLESS`
+
+Wire opcode (`0x0B`, M2N broadcast) that triggers a row from the
+shared Headless-Mode catalog (`racelink_headless.h`). Body is
+`P_Headless { sceneId: u8, brightness: u8 }`. Receivers expand the
+`sceneId` locally — including any per-group phase offset for
+SCENE_FLAG_USE_OFFSET rows — so the wire stays at a single packet
+per Headless trigger. Emitted by a device running in Headless Master
+mode or by external Gateway-side software that includes the shared
+catalog. Renamed from `OPC_SCENE` on 2026-05-17 to keep the
+"`OPC_SCENE`" name reserved for a future host-level RaceLink-Scene
+opcode (today's RaceLink Scenes travel as `OPC_CONTROL`); the wire
+byte value `0x0B` is unchanged. See
+[`reference/wire-protocol.md` §`P_Headless`](reference/wire-protocol.md#p_headless-headless-mode-catalog-trigger-opc_headless-2-b-fixed).
+
+### `OPC_INDICATE`
+
+Wire opcode (`0x0C`, M2N broadcast or unicast) that triggers a
+short-lived indicator overlay from the shared catalog
+(`racelink_indicators.h`). Body is `P_Indicate { type: u8,
+durationSec: u8 }`. `durationSec == 0` is a cancel signal (clears
+any active indicator without showing a new one). See
+[`reference/wire-protocol.md` §`P_Indicate`](reference/wire-protocol.md#p_indicate-status-indicator-overlay-opc_indicate-2-b-fixed).
 
 ### Property (`OPC_CONFIG`)
 

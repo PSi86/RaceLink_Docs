@@ -105,6 +105,17 @@ Adding an opcode means changing the wire format — coordinate across
 all three repos (Host, Gateway, WLED). The `tests/test_proto_header_drift.py`
 test will fail otherwise.
 
+> **The catalog headers ride with `racelink_proto.h`.** Two
+> WLED-neutral catalog headers — `racelink_headless.h` (scene
+> catalog) and `racelink_indicators.h` (indicator catalog) — are
+> distributed alongside `racelink_proto.h` and must stay
+> byte-identical across all four component repos. Drift in any of
+> them counts as a wire-format break the same way `racelink_proto.h`
+> drift does, since the symbolic ids carried by `OPC_HEADLESS` and
+> `OPC_INDICATE` are looked up against the receiver's local copy of
+> the catalog. Both files should be added to the drift-test
+> equivalence list as the Host repo grows them.
+
 **Files to touch:**
 
 1. **C header** [`racelink_proto.h`](../racelink_proto.h):
@@ -165,6 +176,228 @@ test will fail otherwise.
 [ ] PROTOCOL.md: opcode table + body layout
 [ ] firmware-side handlers in Gateway + WLED
 ```
+
+## Adding a new Headless scene to the catalog
+
+The Headless-Mode scene catalog lives in
+[`racelink_headless.h`](../racelink_headless.h)::`SCENE_CATALOG[]` and
+is consumed by every receiver — adding a row means flashing every
+node that needs to display it. Older firmware silently drops unknown
+scene ids via `findSceneById() == nullptr`, so a partial roll-out is
+safe (mixed-firmware fleets just see the new scene only on
+up-to-date nodes).
+
+**Files to touch:**
+
+1. **Catalog header** [`racelink_headless.h`](../racelink_headless.h):
+   * Append a new `SCENE_*` value to the `HeadlessSceneId` enum.
+     **Append-only** — never reuse or renumber existing ids; they
+     are wire-stable.
+   * Append a row to `SCENE_CATALOG[]` carrying the visual spec
+     (fxMode, speed, intensity, color1) plus the offset formula if
+     the scene staggers across groups (`SCENE_FLAG_USE_OFFSET` +
+     `offsetMode`, `offsetBase`, `offsetStep`).
+2. **Mirror to all three component repos** byte-identically: Host,
+   Gateway, WLED. Drift here is as serious as `racelink_proto.h`
+   drift (the receiver expects to look up the id against its local
+   table).
+3. **Firmware-side expansion** in
+   [`usermods/racelink_wled/racelink_wled.cpp`](https://github.com/PSi86/RaceLink_WLED/blob/main/racelink_wled.cpp)
+   ::`applyLocalScene` — usually no code change needed; the catalog
+   row drives the segment writes generically. Only add a code path
+   when the scene needs a non-standard semantic (e.g.
+   `SCENE_RESTORE_BOOT_COLOR` uses a per-device boot snapshot that
+   doesn't live in the catalog row).
+4. **Headless-master broadcast** — none needed; the WLED's
+   single-click cycles the catalog by index, so a new row is picked
+   up automatically.
+5. **Doc** in
+   [`RaceLink_WLED/operator-setup.md`](../RaceLink_WLED/operator-setup.md)
+   §"Headless Mode" → Scenes table: add a row.
+
+## Persisting Headless-Master state across reboots
+
+The Headless Master keeps a small amount of per-master state in
+`cfg.json` so a power-cycle (or battery swap) does not lose the
+pairing context. All fields live under `RaceLink.overrides`; the
+operator-visible reference is
+[`RaceLink_WLED/operator-setup.md` §"Persistence"](../RaceLink_WLED/operator-setup.md#persistence).
+
+**Cardinal rules for changing or adding a persistence field:**
+
+1. **One save path per concern.** A new persistent field should
+   either (a) trigger `configNeedsWrite = true` synchronously
+   (rare operator action, "save now is the right UX") or
+   (b) plug into the debounce pump. Mixing is a bug.
+2. **Debounce pairing-burst writes.** Anything that can mutate
+   tens of times per minute during normal use (most notably the
+   `Headless Slaves` registry mutations) MUST funnel through
+   `markHeadlessPersistDirty()` → `serviceHeadlessPersist(now)`
+   instead of setting `configNeedsWrite` directly. The 5-second
+   debounce window (`HEADLESS_PERSIST_DEBOUNCE_MS`) collapses a
+   40-slave pairing burst into a single save. The LittleFS
+   partition has ~120 000 saves of headroom; without the
+   debounce a heavy-event-day operator burns through that budget
+   in months.
+3. **`exitHeadlessMode()` writes synchronously and wipes
+   everything.** The operator gesture for exit must survive an
+   immediate battery pull, so the function clears
+   `headlessPersistDirty`, mutates the relevant overrides
+   (counter → 0, registry → empty, `current.groupId` → 0,
+   `headlessPersistedActive` → false), and sets
+   `configNeedsWrite = true` in one synchronous pass. Runtime-
+   override paths (Gateway takeover, autosync detection) leave
+   the registry intact — they are involuntary demotions where
+   later manual re-promotion benefits from the preserved data.
+4. **Proactive use of the registry.** On promotion (whether by
+   5-click or by auto-resume), `enterHeadlessMode()` calls
+   `startHeadlessReassign()` which arms the cursor in the
+   `RaceLinkHeadless::ReassignState` struct; the loop pump
+   `serviceHeadlessReassign(now)` sweeps the registry with one
+   `OPC_SET_GROUP` per `HEADLESS_REASSIGN_INTERVAL_MS` (currently
+   500 ms — tuned to give the addressed slave time to CAD + ACK
+   before the next master TX). A 40-slave sweep takes ~20 s; the
+   operator sees discrete `IND_PAIRING_TX` flashes per slave plus
+   `IND_PAIR_CONFIRMED` on the receiving end. If the TX queue is
+   busy (`scheduleSend` returns false — typically the post-promotion
+   scene/SYNC broadcast still in flight), the sweep **retries the
+   same slot** on the next interval (`deferReassignRetry`) instead
+   of advancing — never silently drops a slave.
+5. **Scene rebroadcast after pairing.** After a successful
+   `SET_GROUP` (proactive boot-burst OR individual reactive pairing),
+   `headlessAssignGroupTo()` and the end of
+   `serviceHeadlessReassign()` both call `scheduleSceneRebroadcast()`
+   which arms `RaceLinkHeadless::SceneRebroadcastState` with a 1 s
+   debounce. Successive arms within the window collapse to one
+   `OPC_HEADLESS` packet; the loop pump
+   `serviceSceneRebroadcast(now)` fires it once the deadline
+   elapses. No-op when the master has no current scene yet
+   (currentSceneIdx == 0xFF).
+6. **Group-id discipline.** `HEADLESS_MASTER_GROUP_ID = 1` is
+   the master's own group while active;
+   `HEADLESS_FIRST_GROUP_ID = 2` is the first id ever handed
+   to a slave; 0 is the unconfigured pool; 255 is the
+   broadcast pseudo-group. Use the header helper
+   `RaceLinkHeadless::reserveNextGroupId(counter)` to pull the
+   next free id — it clamps and exhausts correctly. Passing
+   `groupId = 0` to `buildSetGroupPacket()` is a bug.
+7. **Master self-sync invariant.** The master's own
+   `strip.timebase` must equal `-activePhaseOffsetMs` for its
+   own segment effects to render in the same logical-time frame
+   the slaves derive from incoming `OPC_SYNC` packets. Without
+   this invariant the master drifts on offset scenes while slaves
+   stay synchronised with each other. Re-asserted at every
+   `headlessBroadcastSync()` and once at `enterHeadlessMode()`.
+
+### Where the headless state lives
+
+All WLED-neutral headless state structs + helper functions live in
+[`racelink_headless.h`](https://github.com/PSi86/RaceLink_WLED/blob/main/racelink_headless.h)
+under the `RaceLinkHeadless::` namespace — reusable byte-identically
+by external Gateway-side software (e.g. FPVGate). Notable members:
+
+| Header export | Purpose |
+|---|---|
+| `HeadlessSlaveRec` + `findSlaveIdx` / `upsertSlave` / `clearSlaveTable` | persistent slave registry, pure data ops on a caller-owned array |
+| `PersistState` + `markPersistDirty` / `persistDebounceElapsed` / `persistConsumed` | debounced flash-write pump state machine |
+| `SceneRebroadcastState` + `scheduleSceneRebroadcast` / `sceneRebroadcastReady` / `sceneRebroadcastConsumed` | post-pairing rebroadcast scheduler |
+| `ReassignState` + `startReassign` / `pickReassignTarget` / `reassignSweepCompleted` / `confirmReassignSent` / `deferReassignRetry` / `abortReassign` | re-bind cursor state machine |
+| `shouldFirePairingBlip(lastAtMs, now, throttleMs)` | indicator-throttle decision |
+| `reserveNextGroupId(counter)` | counter clamp + bump + exhaustion check |
+| `HEADLESS_*` constants | timing, interval, throttle, debounce parameters |
+
+The WLED-coupled side (`enterHeadlessMode` / `exitHeadlessMode` /
+`headlessBroadcastSync` / `headlessBroadcastCurrentScene` /
+`headlessSendTx` / `headlessAssignGroupTo` / `serviceHeadless`
+probe state machine) stays in
+[`racelink_wled.{h,cpp}`](https://github.com/PSi86/RaceLink_WLED/blob/main/usermods/racelink_wled/racelink_wled.h)
+because it touches `strip.timebase`, `bri`, `applyLocalIndicator`,
+`configNeedsWrite`, and the segment write API. The loop-pump methods
+on `UsermodRaceLink` (`serviceHeadlessPersist`,
+`serviceSceneRebroadcast`, `serviceHeadlessReassign`) are thin
+wrappers — they consult the header decision helpers and execute the
+WLED-side action.
+
+## Time-critical TX via `scheduleSend(rl, buf, len, jitterMaxMs=0)`
+
+`RaceLinkTransport::scheduleSend()` in
+[`racelink_transport_core.h`](https://github.com/PSi86/RaceLink_WLED/blob/main/usermods/racelink_wled/racelink_transport_core.h)
+is the single TX-queue entry point shared byte-identically by Gateway,
+Host and WLED. Its `jitterMaxMs` parameter has three modes:
+
+| `jitterMaxMs` | `lbtEnable` | Behavior |
+|---:|---|---|
+| `== 0` | (any) | **Time-critical bypass**: fire immediately, no random delay, no CAD scan. Use for low-frequency broadcasts where the in-packet timestamp must reflect the actual TX moment within single-digit ms. |
+| `> 0` | `true`  | LBT-polite: 50..300 ms random pre-delay (capped) + CAD scan, retries with backoff if busy. |
+| `> 0` | `false` | Caller-controlled jitter, no CAD. Gateway-style — sole TXer, no spectrum-sharing needed but a small skew helps host-driven burst timing. |
+
+**Canonical use cases for the `jitterMaxMs=0` bypass**:
+
+- **OPC_SYNC keepalive**: the slaves' drift-correction quality is dominated
+  by the precision of the `ts24` timestamp in the SYNC body vs. the actual
+  TX moment. With LBT's 50..300 ms random delay between caller's `millis()`
+  sample and the actual TX, slaves' `lastSyncTbErrMs` inflates to ~250 ms.
+  With the bypass, the same metric stays in the Gateway-baseline range
+  (~15 ms). Trade-off: skips collision avoidance, occasional loss tolerable
+  (next SYNC re-anchors).
+- **Stream fragments**: existing Gateway behaviour — fragments must
+  back-to-back to avoid the receiver de-fragmenter timing out, so
+  inter-packet jitter would break the stream.
+
+The **trade-off** is collision avoidance: with `jitterMaxMs=0` the TX
+fires the moment the radio leaves Standby, regardless of whether another
+node is mid-transmission on the channel. Reserve this path for sends
+where either occasional loss is acceptable (SYNC retries every 30 s
+anyway) or the sender knows it's the only TXer on its side (Gateway).
+
+**Migrated 2026-05-19**: the bypass branch lives directly in
+`scheduleSend()` itself, replacing the older Gateway-side
+`rl_queueTxNoCad()` toggle workaround that flipped `lbtEnable` to
+false around the call. The previous WLED-side `scheduleSendNoLbt()`
+parallel function (introduced briefly) was also removed in the same
+unification pass. Cross-repo invariant: any change to `scheduleSend()`
+must be replayed byte-identically into the Gateway and Host copies of
+`racelink_transport_core.h` so `tests/test_proto_header_drift.py`
+stays green.
+
+## Adding a new Indicator to the catalog
+
+The status-indicator catalog lives in
+[`racelink_indicators.h`](../racelink_indicators.h)::`INDICATOR_CATALOG[]`.
+Same drift-discipline as the scene catalog. Existing receivers
+silently drop unknown indicator ids — forward-compatible.
+
+**Files to touch:**
+
+1. **Catalog header** [`racelink_indicators.h`](../racelink_indicators.h):
+   * Append a new `IND_*` value to `IndicatorType`. **Append-only**.
+   * Append a row to `INDICATOR_CATALOG[]`. **Animated only** —
+     fxMode must be BREATH (3), STROBE (23), or another animated
+     mode. STATIC (0) violates the project's animation rule for
+     indicators. **Avoid pure RGB / W** for the same reason.
+2. **Mirror to all three component repos** byte-identically.
+3. **Trigger** — either local (`applyLocalIndicator(IND_*, dur)` in
+   firmware) or wire (Host / Gateway emits `OPC_INDICATE(type=IND_*,
+   durationSec=...)`). The duration is per-trigger, not in the
+   catalog row, so the same indicator can run for 3 s in one
+   context and 30 s in another.
+   * **Sub-second triggers** — for indicators that need finer than
+     1 s resolution (e.g. `IND_PAIRING_TX` which fires per SET_GROUP send with
+     a 1500 ms display window), call the millisecond variant
+     `applyLocalIndicatorMs(IND_*, durationMs)` instead. Same
+     semantics otherwise; the only difference is the deadline math.
+   * **High-frequency triggers must throttle.** A trigger that
+     fires more often than once per ~200 ms should gate itself with
+     a `lastTriggerAtMs` timestamp so consecutive triggers do not
+     re-extend the indicator deadline into a sustained overlay. See
+     `headlessSendTx()` in [`racelink_wled.cpp`](https://github.com/PSi86/RaceLink_WLED/blob/main/usermods/racelink_wled/racelink_wled.cpp)
+     for the canonical pattern (used to drive `IND_PAIRING_TX` on the
+     Headless Master for SET_GROUP sends only).
+4. **Doc** in
+   [`RaceLink_WLED/operator-setup.md`](../RaceLink_WLED/operator-setup.md)
+   §"Indicators" → Catalog table: add a row. Update the trigger
+   column with the new locally-fired site (if any) or note that the
+   indicator is "wire-only" if no local code path fires it.
 
 ## Adding a new service
 
@@ -248,6 +481,126 @@ request returns immediately and the UI can subscribe to SSE
    (`{"ok": True, "task": {...running...}}`); deeper integration
    tests can exercise the meta-update path with a mock task
    manager.
+
+### Making the workflow cancellable
+
+The `TaskManager` exposes a cooperative-cancel API: a worker thread
+polls `task_manager.is_cancel_requested()` at safe-to-stop points, the
+web layer flips the flag via `POST /api/task/cancel`. The pattern is
+shipped end-to-end for the firmware-update and presets-download flows
+(see `racelink/services/ota_workflow_service.py`); follow the same
+shape for new workflows that are >5 s long or touch operator-affecting
+state (host Wi-Fi, multi-device fan-outs).
+
+1. **Pick the cancel granularity.** Two flavours work:
+   * **After-current-unit** (preferred for multi-device fan-outs):
+     check the flag at loop-entry only. The currently-running unit
+     finishes cleanly; remaining units are skipped. Never produces
+     a half-completed unit. Used by `run_firmware_update` — the
+     per-device flash + verify + reconnect always runs to completion
+     once it started.
+   * **Mid-step** (only when half-state is benign): check the flag
+     before every long sleep / network call. Used by
+     `download_presets` for the AP-connect step where cancelling
+     before the HTTP GET costs the operator nothing.
+2. **Always run cleanup in `finally`.** The cancel flag must not
+   short-circuit Wi-Fi restore, device-state reset, or any other
+   "we changed external state, now put it back" step. The reference
+   pattern (`run_firmware_update`):
+   ```python
+   try:
+       _ensure_wifi_ready(...)
+       for idx, addr in enumerate(macs, start=1):
+           if task_manager.is_cancel_requested():
+               result["cancelled"] = True
+               result["cancelled_after"] = idx - 1
+               break
+           # per-device work
+   finally:
+       self._restore_host_wifi(result, ...)   # ALWAYS runs
+   ```
+3. **Extend the result shape.** Add `cancelled: bool` and (for
+   fan-outs) `cancelled_after: int|None` so the dialog's summary
+   panel can render an honest "stopped after device N of M" line.
+   Existing consumers ignore unknown keys, so this is additive.
+4. **Frontend: cancel button + summary phase.** See the next
+   section ("Modal-locked dialogs"). The button calls
+   `gateway.cancelTask()` from the Pinia store; the dialog flips
+   to a summary phase when the task lands in `done`/`error`.
+5. **Tests.** Mirror `tests/test_ota_workflow_service.py::FwUpdateCancelTests`:
+   a `_RecordingTaskManager` with a programmable cancel-after-N
+   counter, three tests pinning *before-first*, *after-first*,
+   and *after-all* (no-op) behaviour. Verify `result["cancelled"]`
+   and that the `finally` cleanup ran.
+
+## Modal-locked dialogs (Cancel-with-summary pattern)
+
+Long-running operations that change host state the operator cannot
+recover on their own (host Wi-Fi switched to a device AP, multi-device
+flash in flight, …) need to keep their dialog visible until the work
+either finishes naturally or is cancelled with a summary. The
+infrastructure is shipped — three call sites use it today:
+firmware-update, presets-download, discovery.
+
+### Components
+
+| Layer | Where | What it does |
+|---|---|---|
+| Dialog prop | `frontend/src/components/ui/dialog/DialogContent.vue` | `lockClose: boolean`. When `true`: `@interactOutside.prevent`, `@escapeKeyDown.prevent`, X button hidden. |
+| Composable | `frontend/src/composables/useTaskNavigationGuard.ts` | Wraps `useBeforeUnloadGuard` + `onBeforeRouteLeave`. Native confirm with caller's reason string while the task runs. |
+| Store action | `frontend/src/stores/gateway.ts` (`cancelTask`) | `POST /api/task/cancel` + optimistic local `cancel_requested = true`. |
+| Store computeds | `frontend/src/stores/gateway.ts` (`fwBusy`, `presetsBusy`, `discoverBusy`) | Per-task-name busy flags. Add one for each new long-running workflow. |
+
+### Wiring a new long-op dialog
+
+1. **Add a busy computed** to the gateway store keyed on your
+   `task.name`:
+   ```ts
+   const myBusy = computed(
+     () => task.value.name === 'my_task_name' && task.value.state === 'running',
+   )
+   ```
+2. **Lock the dialog** while busy:
+   ```vue
+   <DialogContent :lock-close="gateway.myBusy">
+   ```
+3. **Install the navigation guard** in `<script setup>`:
+   ```ts
+   useTaskNavigationGuard(() => gateway.myBusy, {
+     reason: 'A <verb> is currently running. Leaving now will lose status visibility — continue anyway?',
+   })
+   ```
+4. **Cancel button**: visible only while `myBusy`, disabled when
+   `task.cancel_requested` (server has accepted the cancel; we're
+   waiting for the worker to wind down). Label flips to
+   "Cancelling…".
+5. **Summary phase**: a `phase` ref with `'config' | 'progress' |
+   'summary'`. A watcher on `task.state` flips to `'summary'` when
+   the running task lands in `done` or `error`. The summary panel
+   reads `task.result` and renders success / failure / skipped
+   counts plus any workflow-level side-effect status (e.g.
+   `hostWifi.restored`). Only the summary phase exposes a real
+   Close button.
+6. **Defensive close-on-Close**: the in-dialog Close button must be
+   `:disabled="myBusy"` so the operator cannot dismiss the dialog
+   even via the Close button while the task is running. The lockClose
+   prop guards outside-click / Esc; the disabled Close button guards
+   the obvious other path.
+
+### When to use the full pattern vs. the lighter variant
+
+* **Full pattern** (lock + Cancel button + summary): long-running
+  workflows that change reversible-but-operator-affecting state.
+  Firmware update, presets download, future "bulk reflash group" or
+  multi-device migration. Anything that touches host Wi-Fi
+  qualifies automatically because Wi-Fi-restore failure strands
+  the operator.
+* **Lighter variant** (lock only, no Cancel): short ops (<30 s)
+  with no Wi-Fi / no half-state risk where Cancel is overkill but
+  outside-click dismiss is still annoying. Discovery sweep is the
+  reference. The footer Close button is `:disabled="<busy>"` so
+  the operator either waits for natural completion or accepts the
+  navigation-guard prompt to leave.
 
 ## Modifying threading-sensitive code
 
@@ -573,6 +926,67 @@ Keep Option 5 (host-side auto-unlock) in place as the safety net —
 it covers existing devices flashed before Option 1 was in place,
 plus any device whose `cfg.json` somehow ended up with
 `otaSameSubnet=true` (factory reset, manual re-enable, etc.).
+
+### Host-side per-device cleanup contract
+
+Three load-bearing semantics in
+[`racelink/services/ota_workflow_service.py`](../racelink/services/ota_workflow_service.py)
+that are easy to break when refactoring the per-device loop:
+
+1. **AP-Enable: 1.5 s × 2 attempts.** Single `OPC_CONFIG 0x04 data0=1`
+   send, then `wait_for_ack=True, timeout_s=1.5`, retried once.
+   Healthy devices ACK in < 1 s on the first attempt; the retry
+   recovers a single dropped frame without paying the legacy 8 s
+   penalty. If both attempts time out → `RuntimeError` and the
+   device is marked failed within ~3 s.
+2. **AP-Close is conditional**, gated on a local `ap_opened` flag
+   set right after the AP-Enable ACK is received. The `finally`
+   block uses:
+   ```python
+   if ap_opened and not dev_res.get("ok"):
+       # 1.5 s × 2 AP-Close attempts
+   ```
+   Three cases:
+   * **Clean success** (`dev_res["ok"] = True`) → AP-Close skipped.
+     The WLED reboot triggered by the firmware POST drops the AP
+     on its own; sending an explicit AP-Close into the reboot
+     window timed out for ~3 s per device (neu 92.txt). The
+     reboot is faster and more reliable than the ACK round-trip.
+   * **AP-Enable timeout** (`ap_opened = False`) → AP-Close
+     skipped. Nothing to close; the device never opened its AP.
+   * **AP-Enable ACKed but a later step failed** (`ap_opened =
+     True, dev_res["ok"] = False`) → AP-Close **runs**. The
+     device is still alive on LoRa, the AP is broadcasting, and
+     leaving it up exposes the WLED AP credentials. This is a
+     soft-security concern, so the cleanup is mandatory on this
+     path.
+
+   If you add a step between AP-Enable and the success-path
+   `dev_res["ok"] = True` that opens any other long-lived host
+   state (a held lock, an external connection, etc.), the same
+   `try/except/finally` pattern must clean it up. The reference
+   implementation does this for the host's nmcli connection via
+   `_restore_host_wifi` in the outer `finally`.
+3. **Per-device error surface is two-track.** The except block
+   populates **both** `dev_res["error"]` (consumed by the
+   end-of-run summary panel via `result.errors[]`) and
+   `device_messages[addr_key]` (consumed live by
+   `FwProgressPanel` via `meta.deviceMessages` — see
+   [reference/sse-channels.md](../reference/sse-channels.md)).
+   Both strings are `str(ex) or type(ex).__name__` — the
+   `RuntimeError:` class-name prefix was dropped 2026-05-19
+   because operators kept reading it as a separate kind of
+   error rather than as a Python type tag. If you add a new
+   error path, mirror the same two-track write so the live
+   row doesn't stay generic-"error" until task end.
+
+The `task_manager.snapshot()` adds a top-level `elapsed_s` field
+(`max(0, (ended_ts or now) - started_ts)`) for the same reason
+— the WebUI's live timer anchors on this server-computed value
+instead of `Date.now() / 1000 - started_ts`, which would otherwise
+expose the host-vs-browser clock skew as a constant offset on the
+firmware-update timer. Any new long-running task gets the field
+for free; no per-workflow opt-in.
 
 ## Updating the WLED-deterministic effects list
 

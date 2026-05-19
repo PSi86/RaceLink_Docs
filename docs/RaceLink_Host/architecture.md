@@ -68,7 +68,9 @@ This keeps plugin repositories from reaching deeply into host internals.
   mirror), `dto.py` (device/group serialization shared with the
   WebUI), `request_helpers.py` (DTO parsers + small validation
   helpers), `tasks.py` (long-running `TaskManager` for discover /
-  status / OTA / presets-download).
+  status / OTA / presets-download, with cooperative
+  `request_cancel()` / `is_cancel_requested()` polled by the worker
+  threads — see developer guide §"Making the workflow cancellable").
 - `racelink/integrations/standalone/`
   Canonical standalone Flask bootstrap (`bootstrap.py`,
   `webapp.py`, `config.py`); used both as a library entry point
@@ -136,7 +138,7 @@ This table is the at-a-glance index; open the file for the contract.
 
 | Module | Owns | Called from |
 |---|---|---|
-| `gateway_service` | Pending-request registry, TX/RX listener wiring, reconnect lifecycle, auto-restore worker pool, high-level dispatch (`send_config` / `send_sync` / `send_stream` / `send_and_wait_for_reply`) | Everything that talks to the gateway |
+| `gateway_service` | Pending-matcher registry, TX/RX listener wiring, reconnect lifecycle, auto-restore worker pool, high-level dispatch (`send_config` / `send_sync` / `send_stream` / `send_and_match` / `send_and_wait_with_retries`) | Everything that talks to the gateway |
 | `control_service` | OPC_PRESET / OPC_CONTROL builders, return-value contract (`bool` for every `send_*`), per-group cache update | Web routes, scene runner, RotorHazard adapter |
 | `config_service` | Post-ACK application of OPC_CONFIG changes (state mutation after the gateway confirms) | RX-thread ACK handler via `controller._apply_config_update` |
 | `sync_service` | Thin wrapper for OPC_SYNC broadcast | Scene runner |
@@ -150,7 +152,7 @@ This table is the at-a-glance index; open the file for the contract.
 | `ota_service` | File staging + WLED HTTP transfer (low-level) | OTA workflow |
 | `ota_workflow_service` | Multi-step firmware-update / presets-download orchestration | Web `/api/fw/start`, `/api/presets/download` |
 | `host_wifi_service` | NetworkManager `nmcli` wrapper for OTA | OTA workflow |
-| `pending_requests` | `PendingRequestRegistry` for unicast match-and-set on the RX path | `gateway_service` |
+| `pending_requests` | `PendingMatcher` + `PendingMatcherRegistry` — unified RX-event matcher covering single-sender unicast (1-reply), multi-sender N-reply collectors, and wildcard discovery via one data structure and one wait primitive | `gateway_service` |
 | `scenes_service` | Scene store (CRUD + canonical validator + legacy migration shim) | Web, scene runner |
 | `scene_runner_service` | Sequential dispatcher for scenes — every per-kind handler funnels through `dispatch_planner.plan_action_dispatch` and a small `_dispatch_op` adapter that maps symbolic sender names to `control_service` / `sync_service` / `controller` methods | Web `/api/scenes/<key>/run`, RotorHazard quickset |
 | `scene_cost_estimator` | Predicted wire cost (packets, bytes, airtime) for a scene before it runs — iterates the same plan the runner consumes and sums `body_bytes` | Web `/api/scenes/<key>/estimate`, web editor |
@@ -316,12 +318,14 @@ If you ever need to share a gateway between processes (e.g. dev tooling + live h
 
 The Gateway firmware keeps the SX1262 in **Continuous RX** as its default state. After each TX the Core reverts to Continuous automatically; no Timed-RX window is opened for unicast request/response flows. This was the original cause of the "No ACK_OK for ..." timeout-despite-ACK bug: the Host used to block until the firmware's `EV_RX_WINDOW_CLOSED` event arrived, but that event can be delayed by ESP32 USB CDC buffering.
 
-Host-side matching is therefore owned entirely by `racelink/services/pending_requests.py` and the two entry points in `GatewayService`:
+Host-side matching is owned entirely by `racelink/services/pending_requests.py` and the single primitive in `GatewayService`:
 
 | Call pattern | Helper | Completion signal |
 |---|---|---|
-| Unicast request → single ACK or specific reply | `send_and_wait_for_reply` | `PendingRequestRegistry` matches `(sender, ack_of_or_opc)` and sets the per-request event |
-| Broadcast / group → N replies within a window | `send_and_collect` | Host wall clock (`duration_s`) with early-exit on `expected` count |
+| Any RX-reply expectation | `send_and_match(send_fn, matcher)` | A `PendingMatcher` whose `sender_filter` / `expected_opcode` / `expected_ack_of` / `discriminator_*` fields define what counts as a match. Exits on `expected_count` reached (`reason="count"`), idle-after-first-match (`reason="idle"`), hard ceiling with at least one match (`"max_timeout"`), or hard ceiling with none (`"no_reply"`). |
+| Unicast with retries | `send_and_wait_with_retries(recv3, opcode7, send_fn, ...)` | Thin retry wrapper that rebuilds a unicast `PendingMatcher` per attempt and short-circuits on the first successful reply. |
+
+See [Reply Matching (PendingMatcher)](reply-matching.md) for the full data-flow, filter semantics, and migration history from the earlier split (`send_and_wait_for_reply` + `send_and_collect`).
 
 The old `wait_rx_window` helper remains for backwards compatibility but is deprecated. New code should not call it.
 
@@ -336,7 +340,7 @@ The state-repository lock (`state_repository.lock`, surfaced as `ctx.rl_lock` in
 
 Both paths must acquire the **same** lock so a request thread and the reader thread see a consistent view of the device list. That is the whole point of a single state lock .
 
-Consequence: **a handler that holds the state lock while waiting for a reply over RF will deadlock the reader**. The reader thread stalls in `handle_ack_event` for the reply that just arrived -- and because it is stalled, it cannot pull the *next* USB frame out of pyserial's RX buffer. USB frames for subsequent devices queue up; the next `send_and_wait_for_reply` times out even though the ACK is sitting unread in the OS buffer. Symptoms:
+Consequence: **a handler that holds the state lock while waiting for a reply over RF will deadlock the reader**. The reader thread stalls in `handle_ack_event` for the reply that just arrived -- and because it is stalled, it cannot pull the *next* USB frame out of pyserial's RX buffer. USB frames for subsequent devices queue up; the next `send_and_match` call times out even though the ACK is sitting unread in the OS buffer. Symptoms:
 
 - First unicast call in a bulk returns promptly.
 - Every subsequent unicast call in the same bulk times out at exactly the wait budget (e.g. 8.000 s).

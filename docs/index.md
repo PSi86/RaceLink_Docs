@@ -8,9 +8,8 @@ gathers the Markdown documents from all four projects in one place,
 organised for public consumption.
 
 > **Source of truth.** Files in this directory are **English copies**
-> derived from the source repositories. Originals remain canonical;
-> see [`sources.md`](sources.md) for the per-file provenance. When a
-> source repository changes, this consolidated copy may lag.
+> derived from the source repositories. Originals remain canonical.
+> When a source repository changes, this consolidated copy may lag.
 
 ## System overview
 
@@ -32,60 +31,10 @@ RaceLink_Host  <--USB-->  RaceLink_Gateway  <--LoRa-->  RaceLink nodes
 
 ## Repository layout
 
-```text
-docs/
-├── index.md                     (this document)
-├── sources.md                   (file-by-file provenance)
-├── glossary.md                  (canonical term reference)
-├── licenses.md                  (per-component licence list)
-├── versioning.md                (cross-component compatibility)
-├── contributing.md              (PR rules, smoke tests, conventions)
-├── changelog.md                 (release timeline)
-├── troubleshooting.md           (operator-side index)
-│
-├── concepts/                    Cross-component user concepts
-│   ├── index.md
-│   ├── opcodes.md               (OPC_CONTROL / OPC_OFFSET / OPC_SYNC)
-│   └── deterministic-effects.md
-│
-├── reference/                   Cross-component formal specs
-│   ├── index.md
-│   ├── wire-protocol.md
-│   ├── web-api.md
-│   ├── sse-channels.md
-│   └── scene-format.md
-│
-├── RaceLink_Host/               RaceLink_Host (Python)
-│   ├── README.md
-│   ├── operator-guide.md
-│   ├── webui-guide.md
-│   ├── architecture.md
-│   ├── developer-guide.md
-│   ├── ui-conventions.md
-│   └── standalone-install.md
-│
-├── RaceLink_Gateway/            RaceLink_Gateway (firmware)
-│   ├── README.md
-│   └── operator-setup.md
-│
-├── RaceLink_WLED/               RaceLink_WLED (usermod)
-│   ├── README.md
-│   └── operator-setup.md
-│
-└── RaceLink_RH_Plugin/          RaceLink_RH_Plugin (RotorHazard adapter)
-    ├── README.md
-    ├── operator-setup.md
-    ├── release-playbook.md
-    ├── manifest-dependency-format.md
-    └── adr-0001-manifest-dependency.md
-```
-
-The `host/docs/repo_split_map.md` file from the source has been folded
-into `RaceLink_Host/architecture.md` (its content is small and reads as a
-historical note alongside the architecture description). The
-`plans/` archive in the source is **not** mirrored here — it is an
-internal engineering ledger; relevant content has been folded into
-the appropriate documents.
+Browse the published tree at
+[github.com/PSi86/RaceLink_Docs/tree/main/docs](https://github.com/PSi86/RaceLink_Docs/tree/main/docs).
+The navigation sidebar on the left mirrors the public structure
+section by section.
 
 ## Recommended entry points by audience
 
@@ -149,10 +98,10 @@ the appropriate documents.
 
 The source documents contain links that originally pointed into the
 respective source repository's source code (`racelink/services/foo.py`,
-`racelink_proto.h`, etc.). Those links cannot resolve in this
-documentation-only consolidation. For source-code references, see
-the matching source repository — the canonical paths are recorded in
-[`sources.md`](sources.md).
+`racelink_proto.h`, etc.). At build time those links are rewritten to
+absolute URLs into the matching component repository on GitHub, so
+they resolve from the published site. The canonical paths live inside
+each source repository.
 
 Markdown-to-Markdown links **within** a sub-project's directory still
 work, because each repository's original folder layout is preserved

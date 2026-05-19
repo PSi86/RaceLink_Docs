@@ -85,6 +85,11 @@ RULES = [
     # via the workstation-style "WLED LoRa/WLED/" path
     ("RaceLink_Host/*.md",            "../../WLED%20LoRa/WLED/",      WLED + "/"),
 
+    # RaceLink_Host/developer-guide.md also links the WLED-neutral
+    # catalog headers via "../" — these live at the WLED repo root.
+    ("RaceLink_Host/*.md",            "../racelink_headless.h",       WLED + "/racelink_headless.h"),
+    ("RaceLink_Host/*.md",            "../racelink_indicators.h",     WLED + "/racelink_indicators.h"),
+
     # docs/concepts/deterministic-effects.md (was wled/docs/) uses
     # "../../wled00/..." for the WLED tree
     ("concepts/deterministic-effects.md", "../../wled00/",            WLED + "/wled00/"),

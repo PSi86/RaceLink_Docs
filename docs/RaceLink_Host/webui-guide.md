@@ -66,8 +66,19 @@ The sidebar lists saved scenes plus the **+ New** / **Duplicate**
 the scene editor: a label field, a **Stop on error** toggle, and
 the action list. Each action row carries a drag-handle for
 reordering, a kind-dropdown, target-picker, params widget, flags
-overrides, and a per-action cost badge. The total cost is shown at
-the bottom of the editor, plus the last-run measured wall-clock.
+overrides, a per-action cost badge, a **Duplicate** button (clones
+the row and inserts the copy directly below the original), and a
+remove button. The total cost is shown at the bottom of the editor,
+plus the last-run measured wall-clock.
+
+Hover the gap between two rows to reveal an inline **+ Insert
+action** affordance — clicking it opens a compact kind picker at
+that exact position, so new actions can be added in the middle of
+a long scene without scrolling to the bottom **Add action** button
+and dragging back up. The bottom button remains for appending at
+the end and is the only entry point on an empty scene. The same
+hover-insert + Duplicate pattern is available inside `Offset Group`
+containers for their child actions.
 
 The target-picker is the same three-radio component everywhere
 it appears (top-level effects, `Offset Group` containers,
@@ -102,6 +113,15 @@ byte comes directly from the gateway (via `EV_STATE_CHANGED` events)
 | `RX` | yellow | (rare) `setDefaultRxNone` mode, actively receiving |
 | `ERROR` | red | Gateway reported a fault; detail line names the cause |
 | `UNKNOWN` | muted | Pre-`STATE_REPORT` sentinel; click ↻ to refresh |
+
+The `ERROR` pill is also shown when the USB link itself is lost
+(no `STATE_REPORT` events can reach the host) — the frontend
+overrides the displayed pill to `ERROR` whenever
+`gateway.gateway.ready` is `false`, so the visual matches what the
+red `Gateway link lost` banner is already saying. As soon as the
+link recovers, the `err:` detail field clears optimistically and
+the pill falls back to whatever `master.state` the firmware now
+reports.
 
 The **↻ refresh button** next to the pill sends a
 `GW_CMD_STATE_REQUEST` and resyncs the pill from the gateway's
@@ -195,19 +215,57 @@ Status with many devices, Presets Download) run through the host's
 The most complex of the task-managed dialogs. Each target device
 goes through a multi-stage workflow:
 
-1. **`HOST_WIFI_ON`** — host's NetworkManager / `nmcli` connects
-   to the node's WiFi AP.
-2. **`UPLOAD_FW`** — POST to `/update` on the node's HTTP endpoint.
-3. **`UPLOAD_PRESETS`** (optional) — POST `presets.json` if the
+1. **`RACELINK_AP_ON`** — host sends `OPC_CONFIG` (option 0x04,
+   data0=1) to enable the node's WLED AP, waits for the ACK.
+   `1.5 s × 2 attempts` (1 retry) since 2026-05-19 — was a single
+   8 s attempt before. The `attempt` field in `meta` tracks which
+   retry is in flight.
+2. **`CONNECT_WIFI`** — `nmcli dev wifi connect` to the node's AP,
+   locked to the predicted SoftAP BSSID (ESP32 default
+   `STA_MAC + 1`) so a previously-flashed node still in the scan
+   cache can't be picked by mistake.
+3. **`WAIT_HTTP`** — poll `/json/info` until the MAC matches the
+   target.
+4. **`UPLOAD_FW`** — POST to `/update` on the node's HTTP endpoint.
+5. **`UPLOAD_PRESETS`** (optional) — POST `presets.json` if the
    operator opted in.
-4. **`UPLOAD_CFG`** (optional) — POST `cfg.json` if the operator
+6. **`UPLOAD_CFG`** (optional) — POST `cfg.json` if the operator
    opted in.
-5. **`HOST_WIFI_OFF`** — disconnect the host from the node's AP.
+7. **`REANNOUNCE_WAIT`** — wait for the device's `IDENTIFY_REPLY`
+   on the RaceLink radio after its post-OTA reboot.
+8. **`AUTORESTORE_WAIT`** — wait for the standard auto-restore
+   path to push the device's old group ID back.
+9. **`AP_CLOSE`** — **conditional cleanup, not part of the
+   success path.** Runs only when AP-Enable was ACKed *and* a later
+   step failed (the device's AP is still broadcasting and must be
+   closed). On a clean success the WLED reboot drops the AP for us
+   and this stage never emits. `1.5 s × 2 attempts` shape, matches
+   `RACELINK_AP_ON`. See [operator-guide § Firmware updates](operator-guide.md#firmware-updates-take-minutes-let-them-finish)
+   for the operator-side semantics and
+   [developer-guide § Host-side per-device cleanup contract](developer-guide.md#host-side-per-device-cleanup-contract)
+   for the code-level invariants.
 
 Per-device fields surfaced in the dialog: `stage`, `index/total`,
-`addr` (MAC), `message`. The dialog renders a per-device row that
-turns green on success, red on failure, with the failure message
-inline.
+`addr` (MAC), `message`, plus the workflow-wide
+`meta.deviceState` (MAC → state map) and `meta.deviceMessages`
+(MAC → live error string, populated on the `error` transition so
+the red row shows the concrete failure inline — added 2026-05-19,
+was previously only available post-run via `result.errors[]`). The
+summary panel displays a **Total time: M:SS** badge alongside the
+success / failed / skipped counts. A live
+`elapsed · ~remaining left` timer above the progress bar shows the
+running clock and refines its remaining estimate from observed
+per-device times once one board has finished. The timer anchors on
+the task snapshot's server-computed `elapsed_s` (recomputed every
+SSE push) rather than `Date.now() - started_ts`, so hosts running
+without NTP sync no longer cause the timer to start at e.g.
+"0:07 · ~0:23 left" on a single-device run. Initial estimate
+before any device completes: ~30 s × `<target count>` (see
+[operator-guide § Firmware updates](operator-guide.md#firmware-updates-take-minutes-let-them-finish)).
+The "remaining" value is monotonic — it freezes the observed
+per-device average at each completion boundary and counts down at
+1 s/s, never ticks up; see [developer-guide § FW timer](developer-guide.md)
+for the snapshot-on-advance logic introduced 2026-05-17.
 
 OTA gates that produce HTTP 401 are auto-recovered host-side: the
 host POSTs `/settings/sec` to clear the OTA-lock and flip

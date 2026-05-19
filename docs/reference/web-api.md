@@ -355,6 +355,42 @@ Send `OPC_CONTROL` to a group or to a list of devices.
 }
 ```
 
+### `POST /api/devices/indicate`
+
+Trigger an `OPC_INDICATE` overlay on one or more devices —
+operator-facing flow is the "Locate" / device-name click in the
+WebUI ([webui-guide](../RaceLink_Host/webui-guide.md)). The
+indicator is rendered as a frame-buffer overlay on each receiver
+and auto-restores when `duration_sec` expires; the underlying
+effect is not disturbed (see
+[wire-protocol § `P_Indicate`](wire-protocol.md#p_indicate-status-indicator-overlay-opc_indicate-2-b-fixed)).
+
+**Route name** intentionally uses *indicate* (matching the wire
+opcode `OPC_INDICATE`). *identify* is reserved for the
+RF-discovery opcode `OPC_DEVICES`; the operator-facing button
+label is "Locate".
+
+**Request body**:
+```jsonc
+{
+  "macs":            ["AABBCC"], // non-empty list of MAC suffixes (12-char hex accepted; last 3 bytes used)
+  "indicator_type":  4,           // optional; default = IDENTIFY (4). See racelink_indicators.h / IndicatorType.
+  "duration_sec":    5            // optional; default = 5. Clamped to 0..255. 0 = cancel running indicator.
+}
+```
+
+**Response 200**:
+```jsonc
+{
+  "ok":    true,
+  "count": 1                      // # of devices for which a frame was queued (unknown MACs are skipped)
+}
+```
+
+**Errors**: 400 (`macs` missing or not a non-empty list,
+`indicator_type` / `duration_sec` not coercible to int); 503
+(`control_service` unavailable, e.g. plugin not yet bound).
+
 ### `GET /api/specials`
 
 **Response 200**: `{ "ok": true, "specials": <SpecialsService config> }` —

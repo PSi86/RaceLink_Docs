@@ -13,9 +13,36 @@ edit_uri: edit/main/docs/
 
 docs_dir: docs
 
+# Files that exist on disk but must not appear in the built site.
+# sources.md is a provenance ledger kept for AI/maintainer context only;
+# concepts/index.md is the landing page of the retired "Concepts" tab.
+exclude_docs: |
+  sources.md
+  concepts/index.md
+
+# Files that are part of the build (reachable by URL) but intentionally
+# absent from the navigation sidebar. The four component READMEs are
+# repository-distribution pointers, reached from the Home page; the
+# screenshots README is a directory note for maintainers.
+not_in_nav: |
+  RaceLink_Host/README.md
+  RaceLink_Gateway/README.md
+  RaceLink_WLED/README.md
+  RaceLink_RH_Plugin/README.md
+  assets/screenshots/README.md
+
+validation:
+  nav:
+    omitted_files: ignore
+  links:
+    absolute_links: warn
+    unrecognized_links: warn
+
 theme:
   name: material
+  custom_dir: overrides
   language: en
+  favicon: assets/img/favicon.svg
   features:
     - navigation.tabs
     - navigation.tabs.sticky
@@ -34,30 +61,22 @@ theme:
   palette:
     - media: "(prefers-color-scheme)"
       scheme: default
-      primary: deep orange
-      accent: amber
       toggle:
         icon: material/brightness-auto
         name: Match OS — click to override
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: deep orange
-      accent: amber
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: deep orange
-      accent: amber
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
   icon:
     repo: fontawesome/brands/github
-  font:
-    text: Roboto
-    code: JetBrains Mono
+  font: false
 
 extra_css:
   - assets/racelink-theme.css
@@ -119,7 +138,7 @@ nav:
   - Home: index.md
 
   - User Guide:
-      - Operator guide: RaceLink_Host/operator-guide.md
+      - Operator guide (Host): RaceLink_Host/operator-guide.md
       - Host WebUI guide: RaceLink_Host/webui-guide.md
       - Standalone install (Windows + Linux): RaceLink_Host/standalone-install.md
       - Gateway operator setup: RaceLink_Gateway/operator-setup.md
@@ -127,21 +146,18 @@ nav:
       - WLED node pin configuration: RaceLink_WLED/pin-config.md
       - RotorHazard plugin (operator): RaceLink_RH_Plugin/operator-setup.md
       - Troubleshooting: troubleshooting.md
-      - Glossary: glossary.md
-
-  - Concepts:
-      - concepts/index.md
-      - Opcodes (OPC_CONTROL / OPC_OFFSET / OPC_SYNC): concepts/opcodes.md
-      - Deterministic WLED effects: concepts/deterministic-effects.md
 
   - Reference:
       - reference/index.md
+      - Glossary: glossary.md
       - Wire protocol: reference/wire-protocol.md
+      - Opcodes (CONTROL / OFFSET / SYNC): concepts/opcodes.md
+      - Deterministic WLED effects: concepts/deterministic-effects.md
       - Broadcast ruleset: reference/broadcast-ruleset.md
+      - Wire timing — per-packet wall-clock: reference/wire-timing.md
+      - Scene file format: reference/scene-format.md
       - Web API: reference/web-api.md
       - SSE channels & state scopes: reference/sse-channels.md
-      - Scene file format: reference/scene-format.md
-      - Wire timing — per-packet wall-clock breakdown: reference/wire-timing.md
 
   - Developer Guide:
       - Architecture (Host): RaceLink_Host/architecture.md
@@ -149,24 +165,16 @@ nav:
       - UI conventions (Frontend): RaceLink_Host/ui-conventions.md
       - Contributing: contributing.md
       - Versioning & compatibility: versioning.md
+      - Host internals:
+          - Reply matching (PendingMatcher): RaceLink_Host/reply-matching.md
+      - Component internals:
+          - WLED radio modules: RaceLink_WLED/radio-modules.md
+          - WLED session retrospective — V3↔V4 sync (2026-05): RaceLink_WLED/dev-session-2026-05-sync-investigation.md
+          - RH plugin — manifest dependency format: RaceLink_RH_Plugin/manifest-dependency-format.md
+          - RH plugin — ADR-0001 manifest dependency: RaceLink_RH_Plugin/adr-0001-manifest-dependency.md
+          - RH plugin — release playbook: RaceLink_RH_Plugin/release-playbook.md
 
-      - Component packages:
-          - RaceLink_Host (package): RaceLink_Host/README.md
-          - RaceLink_Gateway (firmware): RaceLink_Gateway/README.md
-          - RaceLink_WLED (firmware): RaceLink_WLED/README.md
-          - RaceLink_RH_Plugin (adapter): RaceLink_RH_Plugin/README.md
-
-      - WLED firmware internals:
-          - Radio modules (chip families and selection): RaceLink_WLED/radio-modules.md
-          - Session retrospective — V3↔V4 sync investigation (2026-05): RaceLink_WLED/dev-session-2026-05-sync-investigation.md
-
-      - RotorHazard plugin internals:
-          - Manifest dependency format: RaceLink_RH_Plugin/manifest-dependency-format.md
-          - ADR-0001 — Manifest dependency: RaceLink_RH_Plugin/adr-0001-manifest-dependency.md
-          - Release playbook: RaceLink_RH_Plugin/release-playbook.md
-
-      - Project history & meta:
-          - Roadmap: roadmap.md
-          - Changelog: changelog.md
-          - Licences: licenses.md
-          - Documentation sources: sources.md
+  - About:
+      - Roadmap: roadmap.md
+      - Changelog: changelog.md
+      - Licences: licenses.md
