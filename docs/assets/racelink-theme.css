@@ -140,6 +140,10 @@ body,input,.md-typeset{font-family:"Sora",-apple-system,system-ui,sans-serif;}
   font-weight:700;
   font-size:21px;
   letter-spacing:.06em;
+  /* Material's .md-ellipsis class sets overflow:hidden for ellipsis
+     truncation. Our brand text is fixed-length, so override that —
+     otherwise the dot's box-shadow glow gets clipped on the left. */
+  overflow:visible;
 }
 .md-header__title .rl-brand__dot{
   display:inline-block;
