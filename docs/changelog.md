@@ -10,6 +10,140 @@ file.
 > When the cross-repo summary and a repository's release notes
 > disagree, the repository's release notes win.
 
+## 2026-05-22 — Multi-network reconnect hardening + UX polish
+
+Stage 5 (2026-05-21) shipped the end-to-end multi-USB-gateway plan;
+six bench-test rounds against two physical gateways on a Pi exposed
+follow-up issues. This entry covers the surgical fixes that closed
+each round.
+
+* **RaceLink_Host** (commit `494ecee` on `ui-new-features`) —
+  1024 pytest pass (+42 vs Stage-5 baseline), 61 vitest, vue-tsc
+  clean, new frontend bundle `index-txAhTpSa.js`.
+* **Wire protocol** — `PROTO_VER_MAJOR/MINOR` unchanged (host + UI
+  + docs only).
+
+### Operator-visible behaviour changes
+
+* **Central master pill is gone.** The header's master bar now
+  carries one pill **per attached gateway** instead of a single
+  pill driven by the primary slot. Each pill colour-codes the
+  combined Bind + RF state (TX = blue, IDLE = green, RX_WINDOW =
+  warm yellow, ERROR = red, conflict = amber border, unbound =
+  red border, pending = grey). Hover for full details.
+* **GatewayRfConfigDialog removed.** The 📡 header button is gone.
+  NetworkManagerDialog's channel-edit flow with the new
+  Migrate-prompt covers the operator-visible RF-config use case;
+  backend `/api/gateway/rf_config` + per-gateway
+  `/api/gateways/<ident_mac>/rf_config` routes stay for debugging
+  / external scripts.
+* **Per-network reconnect banner.** When a gateway disappears
+  mid-session only that one transport drops out — sibling gateways
+  stay fully online. A red banner lists every missing network's
+  gateway with a live 5s countdown, per-row Cancel, global "Cancel
+  all", and an "Open Pair Assistant" button. The countdown ticks
+  locally and resyncs on every SSE update.
+* **Pair Assistant is no longer auto-open.** Replaces the prior
+  "popup on every USB flicker" model. Reachable via the new
+  reconnect banner, the `⚠ Pair…` header button (visible while any
+  gateway needs attention), or the host-settings menu.
+* **Hot-reconnect for known gateways.** A new
+  `MissingTransportTracker` polls every 5s while any persisted
+  `RL_Network.gateway_mac` is missing from `controller._transports`.
+  Replug → next poll attaches it → pill comes back. No host
+  restart needed.
+* **Pair Assistant gains "Re-discover now"** — operator-driven
+  trigger that runs the soft rediscover immediately + clears any
+  per-MAC cancels.
+* **Bind-wizard "all dashes" mismatch fixed.** When GET_RF_CONFIG
+  returned no readback the wizard used to pop with every "Gateway
+  reports" cell blank. Bind eval now parks the record at PENDING
+  (grey pill) instead of CONFLICT, no spurious wizard.
+* **Pair Assistant title** changed from "Pair Assistant (Single
+  Gateway)" to "Pair Assistant" — the Single-Gateway constraint is
+  documented in the dialog description, not the title.
+
+### Backend internals
+
+* **GatewayService listener install fix** — every attached transport
+  now actually gets the `gateway_service.on_transport_event`
+  listener installed (pre-fix, secondary transport was silent on
+  RX, IDENTIFY_REPLY, and disconnect detection).
+* **Per-transport detach** at any N when `gateway_id` is known —
+  fires `gateway_detached` SSE, no nuclear `_close_all_transports`
+  cycle. The single-transport case used to take the global path,
+  which left the dead transport in `_transports` and stuck
+  `controller.ready` at False.
+* **`schedule_reconnect` now graceful** — when at least one
+  transport is still attached, calls `controller.soft_rediscover()`
+  instead of tearing every transport down. Nuclear path reserved
+  for N=0 only (e.g. boot-time no-gateway).
+* **`enumerate_all(exclude_ports=...)`** — soft_rediscover passes
+  the currently-attached port set so the IDENTIFY probe never
+  lands on a live gateway's USB-CDC stream. Eliminated the
+  bench-test #6 cascade pattern (one disconnect causing the
+  sibling to flap-cycle every 5s).
+* **`_attach_transport` idempotency** — duplicate ident_mac drops
+  the latecomer (closes it async); existing transport stays.
+* **`_attach_transport` clears global retry timer** — prevents the
+  scheduled `discoverPort` retry from nuking the freshly-attached
+  transport seconds later.
+* **`_attach_transport` fires `send_state_request`** after the
+  bind eval so the per-gateway pill flips to its real RF state
+  immediately instead of sitting at grey/UNKNOWN until the
+  operator clicks ↻.
+* **GET_RF_CONFIG settle** — default timeout 0.5s → 1.5s with one
+  retry after 200ms; handles freshly-opened transports where
+  USB-CDC needs a moment to surface the first reply.
+* **`_clear_gateway_error` semantic fix** — also sets
+  `self.ready = True` so the legacy global banner clears properly
+  on re-attach.
+* **`_action_accept_host` actually migrates** — kicks the
+  rf_migration TaskManager job server-side and returns the
+  `task_id` so the wizard can subscribe to live phase progress.
+  Used to just set `migration_pending=True` and walk away.
+* **`_action_create_network` rejects silent failure** — raises a
+  clear error when GET_RF_CONFIG returned no readback instead of
+  creating a network with `rf_config=None`.
+
+### REST routes
+
+* `POST /api/gateways/query-state` — fanout state-request over
+  every attached transport, returns one row per gateway.
+* `POST /api/gateway/rediscover` — manual trigger for
+  `soft_rediscover` + clears the tracker's cancel list.
+* `POST /api/gateway/cancel-reconnect` — suppress the reconnect
+  poll for a specific `ident_mac` (or every currently-missing
+  transport when body's `ident_mac` is null).
+* `GET/POST /api/gateways/<ident_mac>/rf_config` — per-gateway
+  RF-config addressing (the legacy `/api/gateway/rf_config`
+  routes stay as primary-transport wrappers).
+
+### Logging
+
+Every high-volume gateway-related debug line now carries a
+gateway label prefix so multi-gateway traces are scannable:
+
+* `[#0 1C:10/Pit-Lane]` from `controller.format_gateway_label` for
+  gateway_service-level lines (state changes, EV_TX_DONE, ACK,
+  STATUS, IDENTIFY, RX, send_and_wait, send_and_match).
+* `[1C:10]` from `GatewaySerialTransport._log_label` for
+  transport-level TX lines (TX GW_CMD_*, TX M2N, TX outcome
+  timeout, USB serial disconnected, USB low-latency mode).
+* `[1C:10]` from `_gw_short` in pending_requests for matcher
+  lines (matcher.register / matcher.cancel / matcher.try_match).
+
+The bracket suffix correlates lines across the three log streams
+without cross-referencing a separate boot line.
+
+Notes:
+
+* No on-disk migration step required.
+* No wire-protocol or firmware change.
+* `racelink/static/dist/` was rebuilt with the new frontend; the
+  Pi needs the new bundle deployed (the old `index-Cn2sNh4I.js`
+  doesn't carry any of these fixes).
+
 ## 2026-05-21 — Multi-USB-gateway support (Host + Docs)
 
 The multi-USB-gateway plan landed end-to-end: one host can now drive

@@ -2,10 +2,10 @@
 
 Connect more than one RaceLink gateway to the same host, drive each
 on its own LoRa channel, and keep their device sets cleanly
-separated. This guide walks the four flows an operator interacts
-with: creating a network, the bind wizard's auto-popup, RF
-migration after a channel change, and Channel Scan to recover
-stranded devices.
+separated. This guide walks the flows an operator interacts with:
+creating a network, the bind wizard, RF migration after a channel
+change, the per-network reconnect banner, and Channel Scan to
+recover stranded devices.
 
 For the underlying wire formats, see
 [`reference/wire-protocol.md`](../reference/wire-protocol.md) §
@@ -44,8 +44,15 @@ see [`concepts/channels.md`](../concepts/channels.md).
   `P_RfConfig` fields.
 * **Bind state** per attached gateway: `pending`, `bound`,
   `conflict`, or `unbound`. The bind state machine inspects
-  every gateway as it attaches; the wizard auto-opens for
-  anything other than `bound`.
+  every gateway as it attaches. The bind wizard auto-opens
+  for `conflict` / `unbound` only — the broader
+  SetupChangeAssistant is operator-triggered (see
+  [Reconnect banner](#per-network-reconnect-banner) below).
+* **RF state** per attached gateway: `IDLE`, `TX`, `RX_WINDOW`,
+  `RX`, `ERROR`, or `UNKNOWN`. Mirrored from the gateway's
+  spontaneous `EV_STATE_CHANGED` events. The per-gateway pill
+  in the header colour-codes Bind + RF state together (see
+  [Per-gateway pills](#per-gateway-pills) below).
 
 ## Day-to-day: the Devices page with two gateways
 
@@ -112,14 +119,30 @@ the engine flips it back to `bound`).
 
 ## RF migration
 
-Triggered either via the bind wizard's "Push the host's
-settings" branch or directly via the Network Manager dialog's
-**Channel** dropdown (any channel pick on a bound network
-schedules a migration if devices on the network's old config
-need to follow).
+Three operator paths trigger an RF migration; they all run the
+same four-phase TaskManager job:
 
-The migration runs as a TaskManager job — live progress in the
-header's task pill — through four phases:
+* **Bind wizard → "Push the host's settings"** when the gateway
+  comes back in a `conflict` state. The wizard stays open and
+  switches to a `migrating` step that subscribes to the task's
+  live phase / index / total / current MAC and shows a progress
+  bar. When the task completes, the wizard flips to `done` (or
+  `error`) with a Close button.
+* **NetworkManagerDialog → edit channel → Save.** If the new RF
+  config differs from what the gateway is actually broadcasting
+  (`gateways.get(mac).rf_config_actual`), a confirmation prompt
+  asks whether to push to the gateway. Choosing **Migrate**
+  kicks the same TaskManager job; progress shows in the master
+  bar's task line.
+* **NetworkManagerDialog → "Custom RF" → Save.** Same flow as
+  the channel edit, just with raw P_RfConfig values from the
+  channel-table's "unchanged" option.
+
+A single migration job at a time — the host returns `409 busy`
+if another long-running task (firmware update, channel scan)
+is already in flight.
+
+The four phases:
 
 1. **Pre-check** — list every device on the network. Skip
    those already on the target config (their
@@ -175,16 +198,101 @@ The scan is read-only at the device level — it doesn't push
 any settings, only observes. Stranded devices stay on their
 own NVS-persisted channels until you explicitly migrate them.
 
+## Per-gateway pills
+
+The header's master bar carries one pill per attached gateway
+instead of the pre-multi-network single master pill. Each pill
+combines the two state machines via colour:
+
+| Bind state | RF state (when `bound`) | Colour | Meaning |
+|---|---|---|---|
+| `bound` | `IDLE` | green | Ready for next send. |
+| `bound` | `TX` | blue | Transmitting on the LoRa wire. |
+| `bound` | `RX` / `RX_WINDOW` | warm yellow | RX window open waiting for a node reply. |
+| `bound` | `ERROR` | red | Gateway reported a fault. |
+| `bound` | `UNKNOWN` | grey | No spontaneous state event yet — click ↻ to query. |
+| `conflict` | — | amber border | Bind wizard wanted: RF config disagrees with the network. |
+| `unbound` | — | red border | No matching network — operator must create or rebind. |
+| `pending` | — | grey | Mid-handshake, or last GET_RF_CONFIG didn't reply. |
+
+The label inside each pill is the network name (`Pit-Lane`,
+`Default`, …) plus the last 4 hex of the gateway's `ident_mac`
+to disambiguate two gateways on the same network. Hover reveals
+the full ident_mac, bind state, RF state and any conflict
+fields.
+
+The **↻** button next to the pills fans a `GW_CMD_STATE_REQUEST`
+out to every attached gateway in parallel and refreshes every
+pill in one round-trip. Used right after a reconnect when a
+pill is still grey but you want confirmation it's actually
+back on the wire.
+
+A `⚠ Pair…` button appears in the header whenever any
+gateway is in `conflict` or `unbound` — clicking it re-opens
+the bind wizard for the affected gateway without needing a
+USB reconnect.
+
+## Per-network reconnect banner
+
+When a gateway disappears mid-session (USB cable yanked,
+adapter glitch, intentional unplug), only that one transport
+drops out — sibling gateways stay fully online and keep their
+device traffic flowing.
+
+What the operator sees:
+
+1. The disappearing gateway's per-gateway pill vanishes from
+   the master bar.
+2. A red **reconnect banner** appears below the header listing
+   every persisted network whose `gateway_mac` is not currently
+   attached, with a per-row live countdown:
+
+       ⚠ Pit-Lane (9C:13:9E:9E:1C:10) — retry in 4s     [Cancel]
+       ⚠ Default  (48:CA:43:3C:D4:E0) — retry in 2s     [Cancel]
+
+       [Open Pair Assistant]   [Cancel all]
+
+3. The host's background **reconnect tracker** polls every 5s
+   for the missing MACs. The probe enumerates only ports that
+   are NOT currently in use, so no healthy transport is ever
+   disturbed.
+4. As soon as the operator plugs the gateway back in, the next
+   poll tick discovers it, attaches it, sends a state-request
+   to seed the pill colour, and removes the row from the banner.
+
+**Cancel** drops a single MAC out of the tracker until the
+operator opts back in. Useful for an intentionally-retired
+gateway you don't want to keep seeing in the banner — the
+network row stays in the database, just isn't being polled
+for. The `Open Pair Assistant` button reaches the broader
+diff view (see below).
+
+**Reconnect on host restart.** When the host process itself
+restarts, both gateways attach during the normal `discoverPort`
+boot path; the tracker only fires if a persisted network has
+no matching transport after that boot.
+
 ## Setup-Change Assistant
 
-The assistant auto-opens once per session when its
-client-side diff finds anything actionable across the
-networks + gateways + devices repos. Surfaced diffs:
+The assistant catalogues every operator-actionable diff across
+the networks + gateways + devices repos. It used to auto-open
+once per session — that was disabled to stop dialog-spam during
+USB flicker. The assistant is now reached via:
+
+* The reconnect-banner's **Open Pair Assistant** button (covers
+  the missing-transport case),
+* The header's `⚠ Pair…` button (covers `conflict` / `unbound`),
+* The host-settings menu (operator-driven inspection at any time).
+
+Surfaced diff categories:
 
 * **Gateway not attached** — a configured network's
-  `gateway_mac` isn't currently visible on USB. Plug it back
-  in, or use the Network Manager to delete the network if it's
-  retired.
+  `gateway_mac` isn't currently visible on USB. The reconnect
+  tracker is already polling for it; the assistant offers
+  per-MAC cancel + a global "Re-discover now" trigger that
+  forces an immediate enumeration (useful when you've just
+  plugged the cable in and don't want to wait for the next
+  5s tick).
 * **Unknown gateway** — an attached gateway whose ident_mac
   doesn't match any network. Open the bind wizard.
 * **RF mismatch** — bind state is `conflict`. Open the bind
@@ -195,9 +303,7 @@ networks + gateways + devices repos. Surfaced diffs:
   line.
 
 Each row has a one-click follow-up button that hands off to
-the right wizard. The assistant's "Dismiss for this session"
-flag clears the moment all diffs resolve, so the next genuine
-diff re-opens it.
+the right wizard.
 
 ## Boundary enforcement
 
