@@ -275,6 +275,78 @@ gate so operators always have a recovery path. See
 [`RaceLink_WLED/operator-setup.md`](RaceLink_WLED/operator-setup.md)
 §"Physical button".
 
+### Network (`RL_Network`)
+
+The operator-visible bundle of a name, a `gateway_mac` binding,
+and an `rf_config`. Devices and groups belong to exactly one
+network at a time; the boundary is enforced server-side at every
+bulk regroup. A single-gateway deployment runs on the "Default"
+network created by the v1→v2 persistence migration; multi-gateway
+setups can have several networks at once with the
+[separation rule](concepts/channels.md#separation-rule) keeping
+their radios out of each other's way. See
+[`RaceLink_Host/multi-network.md`](RaceLink_Host/multi-network.md).
+
+### Channel
+
+A named slot in the host's region table (max five per region —
+see [`concepts/channels.md`](concepts/channels.md)). Picking a
+channel for a network resolves to the seven wire-format
+`P_RfConfig` fields. The Network Manager dialog binds to channels;
+the Advanced (raw `rf_config`) flow bypasses the table.
+
+### Bind state
+
+Per-`ident_mac` classification of an attached gateway. One of
+`pending` (just attached), `bound` (NVS RF matches network),
+`conflict` (bound but RF disagrees), `unbound` (no network
+carries this `ident_mac`). The `GatewayBindWizard` auto-opens
+for any non-`bound` state. See
+[`RaceLink_Host/architecture.md`](RaceLink_Host/architecture.md)
+§"Bind-state machine".
+
+### `gateway_mac`
+
+`RL_Network.gateway_mac` is the hardware identity that ties a
+network to a physical gateway. The host's `transport_for_network`
+helpers look up the attached transport by its `ident_mac` against
+this field. A gateway replacement is therefore an
+"`gateway_mac` rewrite" via the bind wizard's **rebind** action,
+not a re-create of the network.
+
+### `last_known_rf_config`
+
+Per-device snapshot of the RF settings the node was on the last
+time the host heard from it. Surfaced in the DeviceTable badge's
+tooltip and consumed by the migration engine's pre-check
+(devices already on the target config are skipped). Refreshed
+on every successful Channel Scan + at the end of a migration's
+Phase 3 verification.
+
+### RF migration
+
+The four-phase "Devices ZUERST, Gateway DANACH" pipeline driven by
+`rf_migration_service`: pre-check → device push via
+`OPC_RF_CONFIG` → gateway switch via
+`GW_CMD_SET_RF_CONFIG(persist=true)` → verification via
+discovery. See
+[`RaceLink_Host/multi-network.md#rf-migration`](RaceLink_Host/multi-network.md#rf-migration).
+
+### Channel Scan
+
+Operator-driven sweep of a region's channel table on one gateway.
+Volatile-switches the gateway through each channel, dwells for
+IDENTIFY_REPLY frames, restores the original config on exit. The
+recovery tool for **stranded** devices — see
+[`RaceLink_Host/multi-network.md#channel-scan-stranded-device-recovery`](RaceLink_Host/multi-network.md#channel-scan-stranded-device-recovery).
+
+### Stranded device
+
+A device that didn't come back online after an RF migration. Its
+`last_known_rf_config` still points at the old channel; the
+operator's recovery is to run a Channel Scan that finds it on
+its actual channel and updates the host's view.
+
 ## Wire-protocol terms
 
 ### Header7
@@ -298,10 +370,39 @@ The current set includes:
 `OPC_DEVICES`, `OPC_SET_GROUP`, `OPC_STATUS`, `OPC_PRESET`,
 `OPC_CONFIG`, `OPC_SYNC`, `OPC_STREAM`, `OPC_CONTROL`, `OPC_OFFSET`,
 `OPC_GET_CONFIG`, `OPC_HEADLESS` (Headless-Mode catalog trigger),
-`OPC_INDICATE` (status-indicator overlay), plus `OPC_ACK` used as a
-reply only. See
+`OPC_INDICATE` (status-indicator overlay),
+`OPC_RF_CONFIG` / `OPC_GET_RF_CONFIG` (per-node RF reconfiguration),
+plus `OPC_ACK` used as a reply only. See
 [`reference/wire-protocol.md`](reference/wire-protocol.md) §Opcodes for the full
 table.
+
+### `OPC_RF_CONFIG` / `OPC_GET_RF_CONFIG`
+
+LoRa opcodes (`0x0D` / `0x0E`, M2N) that push a new
+`P_RfConfig` to a node or read its current settings back. Used
+by the Stage-3 RF migration engine. Broadcast-forbidden (would
+brick every reachable node); unicast-only. Receiver validates,
+persists to NVS, ACKs, then reboots ~50 ms later onto the new
+settings. See
+[`reference/wire-protocol.md`](reference/wire-protocol.md) §`P_RfConfig`.
+
+### `P_RfConfig`
+
+12-byte wire body carrying the seven LoRa modem fields:
+`freq_hz`, `bw_khz_x10`, `sf`, `cr_den`, `sync_word`,
+`tx_power_dbm` (signed int8), `preamble`. The single source of
+truth for "what's the radio doing" between host, gateway, and
+nodes. See
+[`reference/wire-protocol.md`](reference/wire-protocol.md) §`P_RfConfig`.
+
+### `EV_RF_CHANGED`
+
+USB-signal frame (`0xF6`) emitted by the gateway in reply to
+`GW_CMD_SET_RF_CONFIG` / `GW_CMD_GET_RF_CONFIG`. Body =
+`[reason_byte, P_RfConfig (12)]`. On a persist-mode `SET` the
+gateway emits the event ~100 ms BEFORE rebooting so the host
+still catches it. See
+[`reference/wire-protocol.md`](reference/wire-protocol.md) §"USB-signal frames".
 
 ### `OPC_HEADLESS`
 

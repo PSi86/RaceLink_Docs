@@ -104,6 +104,8 @@ The ASCII-only constants are below; on USB they appear after the
 | `OPC_GET_CONFIG` | `0x0A` | M2N | same opcode N→M | `P_GetConfig` (1 B) → `P_Config` (5 B) | Read-back of an `OPC_CONFIG`-style property |
 | `OPC_HEADLESS` | `0x0B` | M2N | RESP_NONE | `P_Headless` (2 B) | Headless-Mode catalog trigger; receivers expand via the shared catalog in `racelink_headless.h`. Broadcast-shaped. Renamed from `OPC_SCENE` on 2026-05-17 to keep the `OPC_SCENE` name free for a future host-level RaceLink-Scene opcode; wire byte value `0x0B` is unchanged. |
 | `OPC_INDICATE` | `0x0C` | M2N | RESP_NONE | `P_Indicate` (2 B) | Short-lived status-indicator overlay; receivers expand via the shared catalog in `racelink_indicators.h`. Broadcast or unicast. |
+| `OPC_RF_CONFIG` | `0x0D` | M2N | `OPC_ACK` | `P_RfConfig` (12 B) | Push new LoRa RF settings to a node. Unicast-only — broadcast is firmware-forbidden (would brick every reachable node). Node validates, persists to NVS, ACKs, then reboots ~50 ms later onto the new settings. |
+| `OPC_GET_RF_CONFIG` | `0x0E` | M2N | same opcode N→M | `[reserved (1)]` → `P_RfConfig` (12 B) | Read-back of a node's current NVS RF settings. The reserved byte MUST be `0`; non-zero is a structurally invalid request (no reply, mirrors the `OPC_GET_CONFIG` unknown-option path). |
 | `OPC_ACK` | `0x7E` | both | — | `ack body` (4 B) | Used as a reply only |
 
 `BODY_MAX` is 22 bytes; `OPC_CONTROL` is the first opcode that pushes
@@ -497,6 +499,82 @@ Reply: **none** (`RESP_NONE`). Wire shape is identical for broadcast
 (`recv3 = FFFFFF`, e.g. fleet-wide IDENTIFY pulse) and unicast (a
 Host pinging one specific device); the firmware does not distinguish.
 
+### `P_RfConfig` — runtime RF settings (12 B fixed)
+
+Carried by three different opcodes/commands depending on which radio
+gets re-configured:
+
+* **`OPC_RF_CONFIG`** — LoRa, host → node. The node validates the
+  body, persists to NVS, ACKs (`ACK_OK` or `ACK_BAD_*`), then
+  reboots ~50 ms later onto the new settings. The reboot drops
+  the link by design — the operator-facing outcome is the ACK,
+  not a post-reboot heartbeat.
+* **`GW_CMD_SET_RF_CONFIG`** — USB-CDC, host → gateway. The
+  gateway either live-reconfigures (`persist=false`) or writes
+  NVS + reboots (`persist=true`). Emits `EV_RF_CHANGED` ~100 ms
+  before the reboot so the host still catches it.
+* **`OPC_GET_RF_CONFIG`** (LoRa) and **`GW_CMD_GET_RF_CONFIG`**
+  (USB-CDC) — the read-back forms. The node's reply is the same
+  `P_RfConfig` body inside an `OPC_GET_RF_CONFIG` reply; the
+  gateway's reply is an `EV_RF_CHANGED` with `reason=OK` and the
+  current NVS contents.
+
+Wire layout (little-endian throughout, 12 bytes fixed):
+
+```
+freq_hz       (4) uint32  — carrier frequency in Hz, e.g. 867_700_000
+bw_khz_x10    (2) uint16  — bandwidth × 10 (1250 = 125.0 kHz)
+sf            (1) uint8   — spreading factor, 5..12
+cr_den        (1) uint8   — coding rate denominator, 5..8 ⇒ 4/CR
+sync_word     (1) uint8   — LoRa SyncWord (PHY discriminator)
+tx_power_dbm  (1) int8    — TX power, -9..22, SIGNED
+preamble      (2) uint16  — preamble symbols
+```
+
+`tx_power_dbm` is **signed** — host-side codecs use
+`struct.pack("<IHBBBbH", …)`. The single-byte `sync_word` is the
+LoRa PHY's discriminator: two transmitters on the same frequency
+but different SyncWords look like noise to each other's receiver.
+
+`OPC_RF_CONFIG` is **broadcast-forbidden** — broadcasting a new RF
+config would brick every reachable node. The firmware rejects
+`recv3 == FFFFFF`; the host's
+`gateway_service.set_node_rf_config(...)` defence-in-depth check
+refuses to even hit the wire with a broadcast.
+
+NVS is the single source of truth on every device. The firmware
+writes a CRC + boot-counter alongside the saved config and falls
+back to the compile-default after three failed boots — corruption
+recovery without operator action. See
+[`RaceLink_Host/multi-network.md`](../RaceLink_Host/multi-network.md)
+for the operator workflow that drives `OPC_RF_CONFIG` (Migration)
+and `GW_CMD_*_RF_CONFIG` (Network Manager + bind wizard).
+
+The `EV_RF_CHANGED` USB-signal frame carries a `reason` byte in
+front of the `P_RfConfig`:
+
+```
+reason_byte (1) | P_RfConfig (12)
+```
+
+| `reason` | Name | Meaning |
+|---:|---|---|
+| `0x00` | `RF_CHANGE_OK` | Apply succeeded; body carries the now-active config |
+| `0x01` | `RF_CHANGE_REJECTED_RANGE` | One of the fields was out of legal range |
+| `0x02` | `RF_CHANGE_REJECTED_NVS` | NVS write failed; gateway stays on the previous config |
+| `0x03` | `RF_CHANGE_REJECTED_CRC` | Persisted-record CRC mismatch on read-back |
+| `0xFF` | unknown | Forward-compat fallback |
+
+On `RF_CHANGE_REJECTED_*` the body carries the **still-active**
+config — the host can use that to render "we tried X, gateway
+stayed on Y".
+
+The shipped channel table in
+[`docs/concepts/channels.md`](../concepts/channels.md) is what
+the Network Manager dialog binds to; an Advanced-mode operator
+can also POST raw `rf_config` dicts to the host's
+`PUT /api/networks/{id}` endpoint to bypass the table.
+
 ### Other bodies
 
 `get_devices`, `set_group`, `status`, `stream`, `ack` body layouts
@@ -537,6 +615,7 @@ two new events for the synchronous-send contract:
 | `EV_TX_DONE` | `0xF3` | `last_len` (uint8) | Outcome event: a host-initiated frame completed transmission |
 | `EV_TX_REJECTED` | `0xF4` | `[type_full, reason_byte]` | Outcome event: the gateway refused a host-initiated send (see *Reason codes* below) |
 | `EV_STATE_REPORT` | `0xF5` | `[state_byte, [metadata]]` | Reply to `GW_CMD_STATE_REQUEST`; same body shape as `EV_STATE_CHANGED` |
+| `EV_RF_CHANGED` | `0xF6` | `[reason, P_RfConfig (12)]` | Reply to `GW_CMD_SET_RF_CONFIG` / `GW_CMD_GET_RF_CONFIG`. The gateway also emits this ~100 ms BEFORE rebooting on a persist-mode `SET` so the host still catches it. See `P_RfConfig` body section above. |
 
 Retired (do not use, byte values reused):
 
@@ -606,6 +685,8 @@ travel on the LoRa wire.
 | Command | Hex | Payload | Meaning |
 |---|---:|---|---|
 | `GW_CMD_IDENTIFY` | `0x01` | (none, 1-byte payload `[0x01]`) | Port-discovery ping; gateway replies with its identity string |
+| `GW_CMD_SET_RF_CONFIG` | `0x02` | `[P_RfConfig (12), flags (1)]` | Reconfigure the gateway's RF settings. `flags` bit 0 = persist-to-NVS (`1` writes NVS + reboots, `0` is volatile / no reboot). Reply: `EV_RF_CHANGED`. |
+| `GW_CMD_GET_RF_CONFIG` | `0x03` | (none, 1-byte payload `[0x03]`) | Read the gateway's current NVS RF settings. Reply: `EV_RF_CHANGED` with `reason=OK`. |
 | `GW_CMD_STATE_REQUEST` | `0x7F` | (none, 1-byte payload `[0x7F]`) | Ask gateway for current state; reply is `EV_STATE_REPORT` |
 
 ## Host ↔ Gateway flow control

@@ -139,6 +139,7 @@ nav:
 
   - User Guide:
       - Operator guide (Host): RaceLink_Host/operator-guide.md
+      - Multi-Network operator guide: RaceLink_Host/multi-network.md
       - Host WebUI guide: RaceLink_Host/webui-guide.md
       - Standalone install (Windows + Linux): RaceLink_Host/standalone-install.md
       - Gateway operator setup: RaceLink_Gateway/operator-setup.md
@@ -152,6 +153,7 @@ nav:
       - Glossary: glossary.md
       - Wire protocol: reference/wire-protocol.md
       - Opcodes (CONTROL / OFFSET / SYNC): concepts/opcodes.md
+      - Region & Channels: concepts/channels.md
       - Deterministic WLED effects: concepts/deterministic-effects.md
       - Broadcast ruleset: reference/broadcast-ruleset.md
       - Wire timing — per-packet wall-clock: reference/wire-timing.md

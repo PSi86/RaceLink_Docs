@@ -331,6 +331,194 @@ The old `wait_rx_window` helper remains for backwards compatibility but is depre
 
 `EV_RX_WINDOW_OPEN` / `EV_RX_WINDOW_CLOSED` stay in the wire format (the Core header is frozen) but are debug-only from the Host's perspective.
 
+## Multi-Transport runtime (Stage 2 / Stage 3)
+
+The pre-Stage-2 host modelled "the gateway" as a single
+`controller.transport` slot. Stage 2 introduced multi-network
+support: the same host can drive several USB-attached gateways,
+each carrying its own LoRa channel and its own subset of
+networks/devices. The runtime keeps that addition transparent at
+N=1 — every Stage-2/3 helper falls back to the singleton
+behaviour when only one transport is attached — but the
+internals are now built around a transport **list**.
+
+### Transport list + per-network routing helpers
+
+`controller._transports` is the primary store. The legacy
+`controller.transport` is a property that reads/writes
+`_transports[0]`. Three helpers route by network:
+
+* `controller.transport_for_network(network_id)` — resolves via
+  `RL_Network.gateway_mac` ↔ `transport.ident_mac`. Falls back
+  to the only transport when N=1 and the network has no
+  `gateway_mac` yet (Stage-2 default-bind path).
+* `controller.transport_for_device(addr)` — looks up the device,
+  reads its `network_id`, delegates to `transport_for_network`.
+  Used by every unicast send so a packet targeted at a device
+  on network-A goes via the gateway bound to network-A.
+* `controller.transport_for_group(group_id)` — same shape, for
+  group-targeted broadcasts (e.g. `OPC_PRESET` with
+  `recv3=FFFFFF`).
+
+Each transport tags every event it emits with `gateway_id =
+self.ident_mac` (in `_emit` / `_emit_tx`) so downstream matchers
++ pending-expect lookups can scope by source-transport without
+the host having to thread the transport reference through every
+event.
+
+### PendingMatcher gateway_id (Stage 3 Part C)
+
+The `PendingMatcherRegistry` was promoted from "one shared
+registry" to a per-gateway dict
+(`{ident_mac → PendingMatcherRegistry}`) so two devices on
+different gateways that happen to share their last-3 MAC bytes
+cannot collide in the fast-bucket lookup. The
+`PendingMatcher.gateway_id` field is **required** at registration
+time for concrete-sender matchers (unicast and multi-sender
+N-reply); wildcard matchers (discovery, fleet-wide broadcast
+collectors) may still omit it.
+
+```python
+# Stage 3: registry refuses a unicast matcher without gateway_id.
+m = PendingMatcher(
+    sender_filter=frozenset({mac_last3}),
+    expected_ack_of=OPC_SET_GROUP,
+    gateway_id=routed_transport.ident_mac,   # required
+)
+registry.register(m)
+```
+
+`send_and_match(...)` and `send_and_wait_with_retries(...)`
+accept an explicit `transport=` kwarg and auto-derive
+`gateway_id` from `routed_transport.ident_mac` when the caller
+doesn't pass it. Callers that don't pre-route get
+`transport_for_device(recv3)` resolution from
+`send_and_wait_with_retries` for free.
+
+### Per-network MasterStateMap
+
+`SSEBridge.masters` is a `MasterStateMap` — one `MasterState`
+per network id (default-network slot eager-created so
+`bridge.master` stays available for legacy callers). Every
+`EV_STATE_CHANGED` from a tagged transport routes to the slot
+owned by that gateway's network via
+`network_repository.get_by_gateway_mac(ev["gateway_id"])`.
+
+The SSE `master` event broadcasts the unified
+`{networks: [...], default_network_id: "..."}` shape; the
+WebUI's gateway store reads `networks[0]` as the legacy
+single-master for back-compat with the pre-Stage-4 frontend.
+
+### enumerate_all boot path (Stage 2 Part 5)
+
+`controller.discoverPort` walks two paths depending on the
+operator's `psi_comms_port` setting:
+
+* **Pinned** (`psi_comms_port` set) — legacy single-port
+  `GatewaySerialTransport.discover_and_open` flow.
+* **Unpinned** — `GatewaySerialTransport.enumerate_all()`
+  probes every USB port + returns the list of
+  `(port, ident_mac)` tuples for every responding RaceLink
+  gateway. The controller then constructs one transport per
+  hit, calls `_attach_transport` for each, and the bind
+  service classifies them in sequence.
+
+`_attach_transport(transport)` is the per-transport
+orchestrator: `transport.start()`, append to `_transports`,
+run `_bind_transport_to_network`, install hooks per-id, then
+call `gateway_bind_service.evaluate(transport)`. The bind
+service's `evaluate` queries the gateway's NVS RF config via
+`GW_CMD_GET_RF_CONFIG` and broadcasts the resulting
+`gateway_bound` / `gateway_conflict` / `gateway_unbound` SSE
+event.
+
+### Bind-state machine
+
+`racelink/services/gateway_bind_service.py` owns the
+per-`ident_mac` `BindRecord` map. States:
+
+| State | Meaning |
+|---|---|
+| `PENDING` | Just attached, about to query RF config |
+| `BOUND` | Gateway's NVS RF matches the bound network's `rf_config` |
+| `CONFLICT` | Bound but the RF settings disagree; operator wizard chooses accept_gateway / accept_host |
+| `UNBOUND` | No `RL_Network` carries this `ident_mac` and auto-bind didn't fire |
+
+Resolve actions (operator → `POST /api/gateways/{ident_mac}/resolve`):
+`accept_gateway` (adopt actual config), `accept_host` (schedule
+RF migration via `rf_migration_service`), `create_network`,
+`rebind`. Token-gated so a stale wizard answer can't override
+a re-evaluated record.
+
+### RF migration engine (Stage 3 Part E)
+
+`racelink/services/rf_migration_service.py::migrate_network_to`
+is the four-phase pipeline:
+
+1. **Pre-check** — partition the network's devices into
+   `push` (need migration), `skipped_already_target`
+   (last_known_rf_config matches), `skipped_offline`.
+2. **Phase 1 — Device push.** Per device,
+   `set_node_rf_config(target, transport=...)` via the *old*
+   gateway. Each device reboots onto the new config.
+3. **Phase 2 — Gateway switch.** Single
+   `set_gateway_rf_config(target, persist=True,
+   transport=...)`. Gateway reboots; controller reconnect
+   re-opens the USB device.
+4. **Phase 3 — Verification.** Discovery on the new channel.
+   Survivors get `last_known_rf_config` updated; the rest
+   land in `stranded` (Channel-Scan recovery).
+
+On success the engine calls
+`bind_service.re_evaluate(ident_mac)` so the SSE
+`gateway_conflict` flips to `gateway_bound` automatically.
+
+### Channel-Scan service (Stage 3 Part F)
+
+`racelink/services/channel_scan_service.py::scan_region`
+walks a region's channel table on one gateway. Per channel:
+volatile-switch (no NVS), 800 ms settle, broadcast
+`OPC_DEVICES`, dwell, partition responders into known
+(repo hit; updates `last_known_rf_config`) vs unknown
+(recorded with channel info). A `try/finally` restores the
+gateway's pre-scan RF config on exit so a mid-scan exception
+doesn't leave the gateway on the wrong channel.
+
+### Cross-network fan-out (Stage 3 Part G)
+
+* `GatewayService.send_sync(recv3=FFFFFF, ...)` fans out
+  across every attached transport so each network's devices
+  receive an `OPC_SYNC` tick on their own radio. Unicast
+  syncs route via `transport_for_device`.
+* `ControlService` group-targeted sends
+  (`send_group_preset`, `send_offset(targetGroup=...)`,
+  `send_control(targetGroup=...)`) route via
+  `transport_for_group(group_id)`. Device-targeted sends
+  route via `transport_for_device(addr)`. Single-transport
+  deployments hit the singleton fallback.
+* `scene_runner_service`'s dispatcher is unchanged — it
+  calls into control/sync/stream services and inherits their
+  routing.
+
+### Network-boundary enforcement (Stage 3 Part B)
+
+`racelink/domain/network_boundary.py::validate_group_membership`
+runs at every bulk regroup and raises
+`NetworkBoundaryViolation` (caught at the route layer →
+HTTP 400) when:
+
+* Selected devices span multiple `network_id`s
+  (`devices_span_multiple_networks`), or
+* The target group is on a different network than the
+  selected devices (`group_network_mismatch`).
+
+Target group id `0` (Unconfigured) short-circuits both checks
+— it's the cross-network sink for "remove from group". The
+WebUI mirrors the rule client-side in the
+`MultiGroupPickerDialog` so the operator sees disabled
+checkboxes for foreign-network groups before they round-trip
+the validator.
+
 ## Locking Rule: Never hold `state_repository.lock` across RF I/O
 
 The state-repository lock (`state_repository.lock`, surfaced as `ctx.rl_lock` in the web layer) is taken by:

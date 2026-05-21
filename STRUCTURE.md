@@ -62,6 +62,10 @@ middle column; cross-references in the right column.
 |---|---|---|
 | **System overview** (architecture diagram, components) | [`docs/index.md`](docs/index.md) | host/README, gateway/README, wled/README |
 | **Glossary** (Preset / Effect / Group / Capability / Master pill / etc.) | [`docs/glossary.md`](docs/glossary.md) | — |
+| **Multi-Network operator workflow** (create network, bind wizard, RF migration, channel scan, setup-change assistant) | [`docs/RaceLink_Host/multi-network.md`](docs/RaceLink_Host/multi-network.md) | concepts/channels.md, RaceLink_Host/architecture.md §"Multi-Transport runtime" |
+| **Channel table** (per-region channel slots, compliance) | [`docs/concepts/channels.md`](docs/concepts/channels.md) (listed under Reference in nav) | RaceLink_Host/multi-network.md, reference/wire-protocol.md §`P_RfConfig` |
+| **`P_RfConfig` / `OPC_RF_CONFIG` / `EV_RF_CHANGED`** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) §`P_RfConfig`, §"USB-signal frames" | concepts/channels.md, glossary §`P_RfConfig` |
+| **Multi-Transport runtime / Bind-state machine / RF migration engine** | [`docs/RaceLink_Host/architecture.md`](docs/RaceLink_Host/architecture.md) §"Multi-Transport runtime" | RaceLink_Host/reply-matching.md, RaceLink_Host/multi-network.md |
 | **Opcodes** — pragmatic OPC_CONTROL/OFFSET/SYNC explanation | [`docs/concepts/opcodes.md`](docs/concepts/opcodes.md) (listed under Reference in nav) | reference/wire-protocol.md, RaceLink_Host/operator-guide.md |
 | **Host WebUI structure / lifecycle** | [`docs/RaceLink_Host/webui-guide.md`](docs/RaceLink_Host/webui-guide.md) | UI_CONVENTIONS.md, OPERATOR_GUIDE.md |
 | **First-time operator workflow** | [`docs/RaceLink_Host/operator-guide.md`](docs/RaceLink_Host/operator-guide.md) | gateway/OPERATOR, wled/OPERATOR |
@@ -136,6 +140,11 @@ paths are inside the matching component repository (e.g.
 | `RaceLink_Host/racelink/services/offset_dispatch_optimizer.py` | `docs/reference/wire-protocol.md` §"OPC_OFFSET" if wire strategy changes; `docs/RaceLink_Host/operator-guide.md` §6a if user-visible |
 | `RaceLink_Host/racelink/services/control_service.py` | `docs/RaceLink_Host/architecture.md` §"Service Layer" row; `docs/contributing.md` §"Boolean send contract" if the contract is touched |
 | `RaceLink_Host/racelink/services/gateway_service.py` | `docs/RaceLink_Host/architecture.md` §"Service Layer" + §"Threading Model" (auto-restore executor, reconnect, pending-request registry) |
+| `RaceLink_Host/racelink/services/gateway_bind_service.py` | `docs/RaceLink_Host/architecture.md` §"Multi-Transport runtime" → "Bind-state machine"; `docs/RaceLink_Host/multi-network.md` §"Conflict resolution" |
+| `RaceLink_Host/racelink/services/rf_migration_service.py` | `docs/RaceLink_Host/architecture.md` §"Multi-Transport runtime" → "RF migration engine"; `docs/RaceLink_Host/multi-network.md` §"RF migration" |
+| `RaceLink_Host/racelink/services/channel_scan_service.py` | `docs/RaceLink_Host/architecture.md` §"Multi-Transport runtime" → "Channel-Scan service"; `docs/RaceLink_Host/multi-network.md` §"Channel Scan" |
+| `RaceLink_Host/racelink/domain/rf_channels.py` / `rf_policy.py` | `docs/concepts/channels.md`; `docs/reference/wire-protocol.md` §`P_RfConfig` if the wire fields change |
+| `RaceLink_Host/racelink/domain/network_boundary.py` | `docs/RaceLink_Host/architecture.md` §"Network-boundary enforcement"; `docs/RaceLink_Host/multi-network.md` §"Boundary enforcement" |
 | `RaceLink_Host/racelink/services/ota_service.py` / `ota_workflow_service.py` | `docs/RaceLink_Host/operator-guide.md` §"Firmware updates"; `docs/RaceLink_Host/developer-guide.md` §"WLED OTA gate matrix" |
 | `RaceLink_Host/racelink/services/host_wifi_service.py` | `docs/RaceLink_Host/standalone-install.md` §"Linux first-time setup" |
 | `RaceLink_Host/racelink/services/rl_presets_service.py` / `presets_service.py` | `docs/glossary.md` (Preset entry); `docs/RaceLink_Host/operator-guide.md` §"Author RL presets" |
@@ -196,6 +205,8 @@ authoritative file followed by supporting code.
 | `docs/sources.md` | (provenance ledger — no backing code; **excluded from the built site** via `exclude_docs:` in `mkdocs.yml`) |
 | `docs/RaceLink_Host/README.md` | `RaceLink_Host/racelink/__init__.py` (`__version__`); `RaceLink_Host/racelink/app.py`; `RaceLink_Host/racelink/web/__init__.py` |
 | `docs/RaceLink_Host/architecture.md` | `RaceLink_Host/racelink/app.py`, `controller.py`, `racelink/services/*.py`, `racelink/state/repository.py`, `racelink/web/sse.py`, `racelink/transport/gateway_serial.py` |
+| `docs/RaceLink_Host/multi-network.md` | `racelink/services/{gateway_bind_service,rf_migration_service,channel_scan_service}.py`; `racelink/domain/{network_boundary,rf_channels,rf_policy}.py`; `racelink/controller.py` (transport_for_network / transport_for_device / transport_for_group); `racelink/web/api.py` `/api/networks*` + `/api/gateways*` routes |
+| `docs/concepts/channels.md` | `racelink/domain/rf_channels.py` (the shipped table); `racelink/domain/rf_policy.py` (validator); `tests/test_rf_channels.py` + `tests/test_rf_policy_separation.py` pin the invariants |
 | `docs/RaceLink_Host/operator-guide.md` | (operator-facing aggregator, no single backing file; section §6a backed by `racelink/services/scene_runner_service.py` + WLED usermod) |
 | `docs/RaceLink_Host/developer-guide.md` | `RaceLink_Host/racelink/services/scenes_service.py`, `racelink/services/scene_runner_service.py`, `racelink/services/scene_cost_estimator.py`; `RaceLink_Host/racelink_proto.h`; `RaceLink_Host/gen_wled_metadata.py` and `racelink/domain/wled_*.py`; `RaceLink_Host/racelink/services/ota_service.py` |
 | `docs/reference/wire-protocol.md` | **canonical: `RaceLink_Host/racelink_proto.h`** (mirrored in Gateway + WLED). Helpers: `racelink/protocol/{packets,codec,rules}.py`, `racelink/transport/framing.py`, `racelink/racelink_proto_auto.py`, `gen_racelink_proto_py.py`, `tests/test_proto_header_drift.py` |
