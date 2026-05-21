@@ -197,6 +197,126 @@ Lands in the same commit as this changelog entry:
   changelogs); vue-tsc clean; 61 vitest pass.
 * `RaceLink_Docs/`: `mkdocs build --strict` green.
 
+## 2026-05-20 — Host WebUI: Brand visual identity port from racelink.dev
+
+End-to-end visual sweep that ports the [racelink.dev](https://racelink.dev)
+brand language into the Host WebUI without restructuring components or
+operator flows. Two-axis change: a new token / font / surface layer
+*plus* a small button-variant taxonomy that ties the existing verb
+vocabulary (Save / Run / Delete / …) to consistent visual styles.
+
+### Brand surface
+
+* **Wordmark.** Replaced the plain `<h1>RaceLink</h1>` in
+  [AppHeader.vue](https://github.com/PSi86/RaceLink_Host/blob/main/frontend/src/components/AppHeader.vue)
+  with the racelink.dev wordmark: pink-glowing dot + "RACE" in
+  off-white + "LINK" with a pink→cyan gradient text-clip. New helper
+  classes `.rl-brand`, `.rl-brand__dot`, `.rl-brand__g` in
+  [racelink.css](https://github.com/PSi86/RaceLink_Host/blob/main/frontend/src/styles/racelink.css)
+  back it. Header is the only site that uses the wordmark.
+* **Fonts.** Self-hosted Chakra Petch (display, 4 weights) + Sora
+  (body, 3 weights) as GDPR-friendly WOFF2 in `frontend/public/fonts/`.
+  Wired through `--font-display` / `--font-body` + `--font-sans` so
+  every `font-sans` utility and every form-control (after a
+  `font-family: inherit` reset — Preflight is off) lands on Sora.
+* **Background.** Body now layers two radial glows (pink top-left,
+  cyan top-right, both ~12% opacity, `background-attachment: fixed`)
+  over a faint 64 px speed-grid that fades out toward the bottom via a
+  radial mask on `body::before`.
+* **Favicon.** Was 404-ing because no `<link rel="icon">` was
+  declared and the browser default-fetched `/favicon.ico` against the
+  blueprint root. Now wired through Vite's `public/` →
+  `<link rel="icon" href="{{ rl_static_path }}/dist/favicon.svg">` in
+  [index.html](https://github.com/PSi86/RaceLink_Host/blob/main/frontend/index.html);
+  Flask substitutes the Jinja placeholder at request time so the icon
+  resolves under any prefix.
+
+### Token reorganisation
+
+The full token set lives in
+[frontend/src/styles/tailwind.css](https://github.com/PSi86/RaceLink_Host/blob/main/frontend/src/styles/tailwind.css)
+inside `@theme`. Key shifts:
+
+* `--color-accent`: `#4c8bf5` (blue) → `#1fe6d6` (neon brand cyan) →
+  `#2aa599` (medium teal). The bright cyan was too loud on links,
+  checkbox/radio fills, and focus rings; the medium teal stays
+  recognisable as the brand colour family without screaming.
+* `--color-primary-foreground`: `#ffffff` → `#07080D`. Dark-on-teal
+  for `bg-primary` surfaces — the white-on-teal combination was
+  failing both WCAG and the eye-strain test.
+* `--color-card`: `#17171c` (light gray) → `#0c0e16` → `#07080D` →
+  `#07080d1f`. Final step takes it to alpha 0x1F so panels read as
+  glass plates over the body atmosphere.
+* `--color-popover` was previously aliased to `--color-card`; now
+  pinned to `#07080D` solid. Dialogs/popovers need readable opaque
+  surfaces — the transparent card colour is for in-page panels only.
+* New brand tokens: `--color-brand-pink #ff2e6e`, `--color-brand-cyan
+  #1fe6d6` (kept neon, opt-in for wordmark and CTA outlines only),
+  `--color-brand-gradient`, `--gradient-run`, `--shadow-brand-glow`,
+  `--shadow-brand-cta`. All consumable as Tailwind utilities.
+* Native form controls (`<input type="checkbox|radio|range">`,
+  `<progress>`, `<meter>`, `<select>`) now declare `accent-color:
+  var(--color-accent)` in
+  [racelink.css](https://github.com/PSi86/RaceLink_Host/blob/main/frontend/src/styles/racelink.css)
+  — UA defaults (Edge cyan, Firefox blue) no longer leak through.
+
+### Button variant taxonomy
+
+Added two new variants to
+[Button.vue](https://github.com/PSi86/RaceLink_Host/blob/main/frontend/src/components/ui/button/Button.vue)
+and restyled `destructive` to fit the outline language. Mapping to the
+existing button-vocabulary verbs (canonical doc:
+[ui-conventions.md](RaceLink_Host/ui-conventions.md#button-visual-variants-2026-05-20)):
+
+| Variant       | Verbs                                          | Style                                                  |
+|---------------|------------------------------------------------|--------------------------------------------------------|
+| `brand`       | Save, Create, Apply, Confirm                   | Cyan outline + faint cyan fill + cyan text             |
+| `run`         | Run, Start, Re-sync, Send, Start update        | Pink→cyan gradient fill + cyan border + light text     |
+| `destructive` | Delete + destructive confirm CTAs              | Pink outline + faint pink fill + pink text             |
+
+* Smooth hover for `run` is via `filter: brightness()` (declared in
+  the `@utility btn-run-bg` block in
+  [tailwind.css](https://github.com/PSi86/RaceLink_Host/blob/main/frontend/src/styles/tailwind.css))
+  — `background-image` can't interpolate between two `linear-gradient()`
+  functions, so the gradient itself stays fixed and brightness shifts
+  on hover instead.
+* `destructive` lost its solid red fill; the outline form matches the
+  brand/run outline language and reuses `--color-brand-pink` instead
+  of the generic error red so the danger signal stays brand-aligned.
+* `useConfirm({ variant: 'destructive', … })` consumers — currently
+  device-removal in [DevicesSidebar](https://github.com/PSi86/RaceLink_Host/blob/main/frontend/src/components/DevicesSidebar.vue),
+  scene-discard prompts in
+  [scenes.ts](https://github.com/PSi86/RaceLink_Host/blob/main/frontend/src/stores/scenes.ts),
+  and the destructive-action confirm in [SpecialsActionRow](https://github.com/PSi86/RaceLink_Host/blob/main/frontend/src/components/modals/SpecialsActionRow.vue) —
+  inherit the new pink-outline style automatically.
+* The "Reset to RaceLink defaults" Send button
+  (key `wled_reset_overrides`) is the one outlier: data-driven, it
+  picks `brand` over `run` because operators perceive it as a
+  commit-state action even though the underlying packet is a wipe.
+  Pattern documented for re-use.
+
+### Documentation
+
+* **New** [`RaceLink_Host/docs/webui-styling-tips.md`](https://github.com/PSi86/RaceLink_Host/blob/main/docs/webui-styling-tips.md):
+  contributor-facing playbook for the design system — where tokens
+  live, Tailwind v4 specifics (Preflight off, `@utility` for
+  layer-correct custom classes, `@theme` auto-generated utilities),
+  the variant taxonomy, anti-patterns. First port of call for the
+  next theming round.
+* **Updated** [`RaceLink_Host/ui-conventions.md`](RaceLink_Host/ui-conventions.md):
+  new section "Button visual variants" cross-references the verb
+  vocabulary with the new variant names.
+
+### Non-changes
+
+* No protocol, API, or operator-flow changes. Same buttons in the
+  same places fire the same packets.
+* No new dependencies. Self-hosted fonts + `accent-color` + Tailwind
+  v4 `@utility` are platform features, not packages.
+* No light-mode support. The reference racelink.dev site has none, so
+  none was ported. Adding one would be a token-layer rebuild —
+  separate task.
+
 ## 2026-05-19 — WLED: Headless reliability + SYNC precision + headless refactor into header
 
 Field-testing pass that surfaced four issues in the prior 2026-05-18 Headless

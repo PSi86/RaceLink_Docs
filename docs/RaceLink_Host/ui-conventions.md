@@ -69,6 +69,52 @@ If you find yourself reaching for `Apply` on a button, consider
 whether `Send` (single command), `Move` (membership), or `Save`
 (persistence) fits better.
 
+## Button visual variants (2026-05-20)
+
+Verbs map to a small set of `<Button variant="…">` styles defined in
+[Button.vue](https://github.com/PSi86/RaceLink_Host/blob/main/frontend/src/components/ui/button/Button.vue).
+The visual split is intentional: an operator scanning a dialog row
+should recognise the action class at a glance.
+
+| Variant       | Used by verbs                                  | Look                                                   |
+|---------------|------------------------------------------------|--------------------------------------------------------|
+| `brand`       | Save · Create · Apply · Confirm                | Cyan outline, faint cyan fill, cyan text               |
+| `run`         | Run · Start · Re-sync · Send · Start update    | Pink→cyan gradient fill, cyan border, light text       |
+| `destructive` | Delete (and the confirm CTA of `useConfirm({ variant: 'destructive' })`) | Pink outline, faint pink fill, pink text |
+| `secondary`   | Cancel · Close                                 | Neutral filled, low-emphasis                           |
+| `ghost`       | Toolbar icon buttons, in-row affordances       | Transparent → secondary on hover                       |
+| `outline`     | Rare neutral bordered                          | Border + transparent fill                              |
+| `default`     | Fallback (rarely needed now)                   | Solid `bg-primary`                                     |
+
+Rules of thumb when wiring a new button:
+
+* **Pick by verb.** The table above is canonical — if your verb is in
+  the [Button vocabulary](#button-vocabulary) section, it has a
+  variant. Don't pick by aesthetic.
+* **Save and Delete in the same footer** is the canonical pairing —
+  cyan outline next to pink outline reads as "commit vs discard".
+* **Run / Send share the gradient fill.** They're the only filled
+  brand variants. Use the gradient when the operator initiates a
+  transient remote operation (RF dispatch, OTA, broadcast). Don't use
+  it for persistence operations even if technically they also send to
+  the device (operator semantics, not implementation, decides).
+* **Data-driven actions** — pick the variant from a `computed()` based
+  on the action's stable key, not from the displayed label. See
+  [`SpecialsActionRow.vue`](https://github.com/PSi86/RaceLink_Host/blob/main/frontend/src/components/modals/SpecialsActionRow.vue)
+  for the pattern (the "Reset to RaceLink defaults" Send button is a
+  commit-state action keyed `wled_reset_overrides` and renders as
+  `brand` even though every other entry in the same component
+  renders as `run`).
+* **Variant ≠ confirm flow.** Visual destructiveness (`variant="destructive"`)
+  is independent of `useConfirm({ variant: 'destructive', … })`. A
+  Delete button is always both; a Re-sync button is `run` visually but
+  also triggers a destructive confirm. Don't conflate them.
+
+The full token system, font stack, gradient-hover transition pattern,
+and the `--color-card` / `--color-popover` split that supports this
+visual language are documented in the Host repo at
+[docs/webui-styling-tips.md](https://github.com/PSi86/RaceLink_Host/blob/main/docs/webui-styling-tips.md).
+
 ## Modal-locked dialogs (long-running operations)
 
 Dialogs that wrap a multi-second background task which mutates
