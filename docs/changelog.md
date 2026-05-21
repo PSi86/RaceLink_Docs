@@ -10,6 +10,193 @@ file.
 > When the cross-repo summary and a repository's release notes
 > disagree, the repository's release notes win.
 
+## 2026-05-21 — Multi-USB-gateway support (Host + Docs)
+
+The multi-USB-gateway plan landed end-to-end: one host can now drive
+several attached gateways, each carrying its own LoRa channel and its
+own subset of networks/devices. Stage 0/1/1.5 (pre-sync + wire
+protocol + single-gateway onboarding) shipped earlier — this
+changelog covers Stage 2/3/4/5 in one block since they all moved
+together.
+
+### Stage 2 — host-side multi-transport runtime
+
+Eight commits, four landed on `ui-new-features` between
+`76b3d46..1102176`:
+
+* **Schema v2** (`76b3d46`): new `RL_Network` domain model with
+  `id` / `name` / `gateway_mac` / `region` / `channel_id` /
+  `rf_config` / `created_ts`; `network_id` field on every
+  `RL_Device` and `RL_DeviceGroup`; idempotent v1→v2 persistence
+  migration that synthesises the default network and back-fills
+  every device + group.
+* **Transport list foundation** (`69bbe1c`): `controller.transport`
+  is now a property over the primary slot of
+  `controller._transports`; new `transport_for_network` /
+  `transport_for_device` helpers route by `RL_Network.gateway_mac`
+  ↔ `transport.ident_mac`; `PendingMatcher.gateway_id` filter
+  field; `GatewaySerialTransport.enumerate_all()` classmethod
+  walks every USB port + returns `(port, ident_mac)` per
+  responding gateway.
+* **Per-gateway send-path routing + per-network SSE master +
+  `enumerate_all` boot** (`1102176`):
+    * Transport `_emit` / `_emit_tx` tag every event with
+      `gateway_id = self.ident_mac`.
+    * `PendingMatcherRegistry` split into a per-`ident_mac` dict;
+      `controller._pending_expect` keyed by `gateway_id`;
+      hook installation tracked per transport.
+    * `setNodeGroupId` + `send_and_wait_with_retries` route via
+      `transport_for_device`.
+    * New `MasterStateMap` (one `MasterState` per network) backs
+      `SSEBridge.masters`; `/api/master` returns
+      `{networks, default_network_id}`; the SSE `master` event
+      carries the unified shape; the WebUI's gateway store reads
+      `networks[0]` for back-compat.
+    * `discoverPort` walks `GatewaySerialTransport.enumerate_all()`
+      when `psi_comms_port` isn't pinned; `_attach_transport`
+      orchestrates `start` + auto-bind + per-id hook install.
+    * `_close_all_transports` cleans up the whole list on shutdown
+      / reconnect.
+
+At N=1 every helper falls back to the singleton path — the
+single-gateway UX is byte-identical to the pre-Stage-2 host.
+
+### Stage 3 — channels, policy, bind state machine, migration, fan-out
+
+Seven parts (A-G), four commits on `ui-new-features` between
+`c6f462d..2fa24a8`:
+
+* **Part A — RF channels + policy** (`c6f462d`):
+  `racelink/domain/rf_channels.py` ships max-five-per-region
+  channel tables for EU868 + US915 (≥500 kHz separation between
+  every same-SyncWord pair, validated at import).
+  `racelink/domain/rf_policy.py` exposes
+  `validate_networks_separation` (returns conflict dicts; used
+  server-side at every network mutation).
+* **Part B — Hard network-boundary enforcement** (`c6f462d`):
+  `racelink/domain/network_boundary.py::validate_group_membership`
+  rejects bulk regroups that span networks. `POST
+  /api/devices/update-meta` returns HTTP 400 with a structured
+  detail payload before the TaskManager job runs. New groups
+  inherit the default network's id.
+* **Part C — PendingMatcher gateway_id required** (`aac678f`):
+  `PendingMatcherRegistry.register` raises `ValueError` for
+  concrete-sender matchers without `gateway_id`. Every send-path
+  service (`config_service`, `status_service`, `send_and_wait_with_retries`)
+  stamps the routed transport's `ident_mac`.
+* **Part D — Gateway-bind state machine** (`aac678f`):
+  `racelink/services/gateway_bind_service.py` classifies every
+  attached transport as `pending` / `bound` / `conflict` /
+  `unbound` after querying its NVS RF config via
+  `GW_CMD_GET_RF_CONFIG`. SSE emits
+  `gateway_bound` / `gateway_conflict` / `gateway_unbound` with the
+  full `BindRecord` payload. `POST
+  /api/gateways/{ident_mac}/resolve` takes one of
+  `accept_gateway` / `accept_host` / `create_network` / `rebind`
+  (token-gated).
+* **Part E — RF migration engine** (`aac678f`):
+  `racelink/services/rf_migration_service.py::migrate_network_to`
+  runs the four-phase "Devices ZUERST, Gateway DANACH" pipeline
+  (pre-check → device push via `OPC_RF_CONFIG` → gateway switch
+  via `GW_CMD_SET_RF_CONFIG(persist=True)` → verification via
+  discovery). Triggered by the bind wizard's `accept_host` flow
+  or by `POST /api/networks/{network_id}/migrate`.
+* **Part F — Channel-scan service** (`2fa24a8`):
+  `racelink/services/channel_scan_service.py::scan_region`
+  walks a region's channel table on one gateway (volatile-switch
+  → settle → broadcast `OPC_DEVICES` → dwell → partition into
+  known/unknown). `try/finally` restores the pre-scan config
+  even on mid-channel failure. `POST
+  /api/gateways/{ident_mac}/channel-scan` spawns the task.
+* **Part G — Cross-network fan-out** (`2fa24a8`):
+  `GatewayService.send_sync` broadcast fans out across every
+  transport; `ControlService.send_group_preset` / `send_offset` /
+  `send_control` / `send_device_preset` / `send_device_indicate`
+  route via `controller.transport_for_group` /
+  `transport_for_device`.
+
+### Stage 4 — frontend multi-network UX
+
+Three blocks on `ui-new-features` between `532a89e..6d0cf93`:
+
+* **Block 1 — Foundation** (`532a89e`): backend `serialize_device`
+  + `/api/groups` now return `network_id` + `last_known_rf_config`;
+  new `/api/channels` exposes the shipped region table; new
+  `frontend/src/stores/networks.ts` with deterministic-by-hash
+  badge colours; DeviceTable gains a "Network" column with a
+  tooltip showing the device's last-known RF settings; sidebar
+  gains a network-filter dropdown that's hidden at N=1.
+* **Block 2 — Wizards** (`4ffa3da`): new `frontend/src/stores/gateways.ts`
+  hydrated from `/api/gateways` + kept live by the SSE
+  `gateway_*` events; **GatewayBindWizard.vue** auto-opens on
+  conflict/unbound and renders the per-field diff + resolve
+  options; **ChannelScanDialog.vue** offers the form / running /
+  result views with per-channel responder partitioning into
+  known + unknown.
+* **Block 3 — Network Manager + Setup-Change Assistant + scene
+  picker** (`6d0cf93`): backend `PUT /api/networks/{id}` (rename +
+  region/channel + rf_config; runs `validate_networks_separation`
+  and returns HTTP 400 on conflict) and `DELETE /api/networks/{id}`
+  (refuses when last-remaining / still-referenced).
+  **NetworkManagerDialog.vue** is the two-pane CRUD UI with an
+  inline live-bind-state callout. **SetupChangeAssistant.vue**
+  auto-opens once per session when its client-side diff finds
+  anything actionable (gateway missing / gateway unbound / gateway
+  conflict / device RF stale) and offers one-click hand-offs to
+  the right wizard. **MultiGroupPickerDialog.vue** anchors on the
+  first selected group's network and disables cross-network
+  selections with an "other net" pill.
+
+### Stage 5 — documentation (this repo)
+
+Lands in the same commit as this changelog entry:
+
+* `docs/concepts/channels.md` — region/channel tables + separation
+  rule + Advanced custom-mode + compliance disclaimer.
+* `docs/RaceLink_Host/multi-network.md` — operator-facing guide
+  covering bind wizard, RF migration, Channel Scan, Setup-Change
+  Assistant, boundary enforcement, single-gateway back-compat.
+* `docs/reference/wire-protocol.md` — new `P_RfConfig` body
+  section, new rows in the opcode table for `OPC_RF_CONFIG` /
+  `OPC_GET_RF_CONFIG`, new USB-only command rows for
+  `GW_CMD_SET_RF_CONFIG` / `GW_CMD_GET_RF_CONFIG`, new
+  `EV_RF_CHANGED` (`0xF6`) row.
+* `docs/RaceLink_Host/architecture.md` — new "Multi-Transport
+  runtime (Stage 2 / Stage 3)" section with the transport list /
+  PendingMatcher gateway_id contract / MasterStateMap /
+  enumerate_all boot / bind-state machine / RF migration engine /
+  channel scan / cross-network fan-out / network-boundary
+  enforcement subsections.
+* `docs/glossary.md` — eleven new entries: `Network`, `Channel`,
+  `Bind state`, `gateway_mac`, `last_known_rf_config`, `RF
+  migration`, `Channel Scan`, `Stranded device`, `OPC_RF_CONFIG`
+  / `OPC_GET_RF_CONFIG`, `P_RfConfig`, `EV_RF_CHANGED`. Updated
+  the existing Opcode entry to mention the new opcodes.
+* `STRUCTURE.md` Tables 1/2/3 — five new topic rows, six new
+  code→doc rows, two new doc→backing-code rows.
+* `mkdocs.yml` nav — entries for both new docs.
+
+### Non-changes
+
+* No changes to single-gateway behaviour. Every Stage-2/3 helper
+  falls back to the singleton transport / default network when
+  N=1 attached — a pre-Stage-2 host upgrades transparently.
+* No wire-format breakage. `OPC_RF_CONFIG` / `OPC_GET_RF_CONFIG`
+  / `GW_CMD_*_RF_CONFIG` / `EV_RF_CHANGED` are additive — older
+  WLED + Gateway firmware that pre-dates Stage 1 PR-1 will not
+  recognise them and (per the protocol's forward-compat rule)
+  silently ignore them.
+* No persistence-format breakage from the migration engine —
+  v1→v2 is idempotent + back-compatible on the down-migrate path
+  (Stage 2 Part 1's tests pin this).
+
+### Test counts at end-of-shipping
+
+* `RaceLink_Host/`: 982 pytest pass + 9 subtests (one deselected
+  — the pre-existing OTA failure documented in earlier
+  changelogs); vue-tsc clean; 61 vitest pass.
+* `RaceLink_Docs/`: `mkdocs build --strict` green.
+
 ## 2026-05-19 — WLED: Headless reliability + SYNC precision + headless refactor into header
 
 Field-testing pass that surfaced four issues in the prior 2026-05-18 Headless
