@@ -107,6 +107,8 @@ body,input,.md-typeset{font-family:"Sora",-apple-system,system-ui,sans-serif;}
     radial-gradient(900px 520px at 12% -3%,rgba(255,46,110,.10),transparent 60%),
     radial-gradient(820px 600px at 92% 4%,rgba(31,230,214,.09),transparent 58%),
     #07080D;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
 }
 [data-md-color-scheme="slate"] .md-main__inner{background:transparent;}
 
