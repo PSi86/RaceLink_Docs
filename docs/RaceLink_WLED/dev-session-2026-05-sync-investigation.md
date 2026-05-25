@@ -286,7 +286,7 @@ and known-good value for the RaceLink fleet.
 | **HTTP form args** | `MA` (max mA), `ABL` (checkbox), `PPL` (per-port-limiter mode) ([`set.cpp:184`](wled00/set.cpp#L184)) |
 | **Convention** | `maxpwr = 0` → ABL disabled. `maxpwr > 0` → ABL enabled with that mA budget. |
 | **Why it matters for sync** | When ABL is enabled and the budget is tight, frame brightness is scaled down on bright frames. Mixed enabled/disabled across the fleet produces visibly different effect intensity even with identical preset state. |
-| **Known-good value (RaceLink fleet)** | Operator chose **ABL disabled** uniformly (`maxpwr = 0`). The fleet runs 9 LEDs per device, far below any practical mA budget, so ABL was never doing useful work — only causing per-device divergence. |
+| **Known-good value (RaceLink fleet)** | Operator chose **ABL disabled** uniformly (`maxpwr = 0`) so per-device ABL budget variations could not cause visible intensity divergence on bright frames across the fleet. ABL is appropriate as an opt-in per node where it's actually needed — typically nodes driving long strips (more than ~120 LEDs) where full-white frames can overrun the PSU or wiring rating. |
 
 ### Gamma correction for color (`gammaCorrectCol`)
 
