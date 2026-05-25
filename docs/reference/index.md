@@ -22,6 +22,10 @@ backs the narrative docs.
   matrix.
 * [**Wire timing**](wire-timing.md) — per-packet wall-clock breakdown
   from host enqueue through USB to RF transmit.
+* [**WLED OTA gate matrix**](wled-ota-gates.md) — the four gates
+  WLED's `/update` handler runs (same-subnet, settings-PIN,
+  OTA-lock, release-name) and the five firmware-side options to
+  ship `same-subnet=false`.
 * [**Scene file format**](scene-format.md) — on-disk shape of
   `scenes.json` (action kinds, params, flags-overrides).
 * [**Web API**](web-api.md) — REST endpoints exposed by the host

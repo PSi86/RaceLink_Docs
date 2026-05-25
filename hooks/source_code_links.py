@@ -81,6 +81,12 @@ RULES = [
     ("reference/wire-protocol.md",    "../gen_racelink_proto_py.py",  HOST + "/gen_racelink_proto_py.py"),
     ("reference/wire-protocol.md",    "../../RaceLink_Gateway/",      GATEWAY + "/"),
 
+    # reference/wled-ota-gates.md (lifted from developer-guide.md in
+    # Gruppe 8) keeps the same workstation-style refs the source
+    # section carried
+    ("reference/wled-ota-gates.md",   "../racelink/",                 HOST + "/racelink/"),
+    ("reference/wled-ota-gates.md",   "../../WLED%20LoRa/WLED/",      WLED + "/"),
+
     # RaceLink_Host/developer-guide.md references the WLED fork
     # via the workstation-style "WLED LoRa/WLED/" path
     ("RaceLink_Host/*.md",            "../../WLED%20LoRa/WLED/",      WLED + "/"),

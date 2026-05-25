@@ -80,7 +80,7 @@ middle column; cross-references in the right column.
 | **Offset Mode (operator perspective)** | [`docs/RaceLink_Host/operator-guide.md`](docs/RaceLink_Host/operator-guide.md) §6a | `reference/wire-protocol.md` §"OPC_OFFSET"; `reference/opcodes.md` |
 | **Cyclic-effect phase-lock pitfall** | [`docs/reference/opcodes.md`](docs/reference/opcodes.md) §"Cyclic-effect phase-lock" | `RaceLink_WLED/operator-setup.md`, `troubleshooting.md` |
 | **OTA workflow (operator)** | [`docs/RaceLink_Host/operator-guide.md`](docs/RaceLink_Host/operator-guide.md) §"Firmware updates" | `RaceLink_Host/developer-guide.md` §"WLED OTA gate matrix" |
-| **OTA gate matrix (developer)** | [`docs/RaceLink_Host/developer-guide.md`](docs/RaceLink_Host/developer-guide.md) §"WLED OTA gate matrix" | `RaceLink_Host/operator-guide.md` |
+| **OTA gate matrix (developer)** | [`docs/reference/wled-ota-gates.md`](docs/reference/wled-ota-gates.md) | `RaceLink_Host/operator-guide.md`; `RaceLink_Host/developer-guide.md` §"WLED OTA gate matrix" pointer |
 | **Master pill states / gateway lifecycle** | [`docs/RaceLink_Host/operator-guide.md`](docs/RaceLink_Host/operator-guide.md) §"Master pill states" | `reference/wire-protocol.md` §"Gateway state machine" |
 | **Wire protocol (full reference)** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) | `RaceLink_Host/architecture.md` §"Transport Interface" |
 | **Opcodes** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) §"Opcodes" | `glossary.md` §"Opcode" |
@@ -160,7 +160,7 @@ paths are inside the matching component repository (e.g.
 | `RaceLink_Host/racelink/services/channel_scan_service.py` | `docs/RaceLink_Host/architecture.md` §"Multi-Transport runtime" → "Channel-Scan service"; `docs/RaceLink_Host/multi-network.md` §"Channel Scan" |
 | `RaceLink_Host/racelink/domain/rf_channels.py` / `rf_policy.py` | `docs/reference/channels.md`; `docs/reference/wire-protocol.md` §`P_RfConfig` if the wire fields change |
 | `RaceLink_Host/racelink/domain/network_boundary.py` | `docs/RaceLink_Host/architecture.md` §"Network-boundary enforcement"; `docs/RaceLink_Host/multi-network.md` §"Boundary enforcement" |
-| `RaceLink_Host/racelink/services/ota_service.py` / `ota_workflow_service.py` | `docs/RaceLink_Host/operator-guide.md` §"Firmware updates"; `docs/RaceLink_Host/developer-guide.md` §"WLED OTA gate matrix" |
+| `RaceLink_Host/racelink/services/ota_service.py` / `ota_workflow_service.py` | `docs/RaceLink_Host/operator-guide.md` §"Firmware updates"; `docs/reference/wled-ota-gates.md` if the four-gate semantics or the host-side auto-unlock contract changes; the module-docstring on `ota_workflow_service.py` carries the per-device cleanup contract (AP-Enable retry shape, conditional AP-Close, two-track error surface) |
 | `RaceLink_Host/racelink/services/host_wifi_service.py` | `docs/RaceLink_Host/standalone-install.md` §"Linux first-time setup" |
 | `RaceLink_Host/racelink/services/rl_presets_service.py` / `presets_service.py` | `docs/glossary.md` (Preset entry); `docs/RaceLink_Host/operator-guide.md` §"Author RL presets" |
 | `RaceLink_Host/racelink/services/specials_service.py` | `docs/RaceLink_Host/operator-guide.md` §"Configure devices (Specials)" |
@@ -251,4 +251,5 @@ authoritative file followed by supporting code.
 | `docs/RaceLink_WLED/radio-modules.md` | `RaceLink_WLED/racelink_wled.cpp` (`radioInit()`); the RadioLib SX126x / SX127x class hierarchy (`-D RACELINK_SX1262` vs `-D RACELINK_LLCC68`) |
 | `docs/reference/broadcast-ruleset.md` | `RaceLink_Host/racelink_proto.h` (`RULES[]`); `RaceLink_Host/racelink/protocol/rules.py`; firmware `racelink_wled.cpp` (`handlePacket` / per-opcode handlers) |
 | `docs/reference/wire-timing.md` | `RaceLink_Host/racelink/transport/framing.py`; `RaceLink_Host/racelink/services/rf_timing.py`; firmware `racelink_transport_core.h` (`scheduleSend` LBT/CAD path) |
+| `docs/reference/wled-ota-gates.md` | upstream WLED `wled00/wled_server.cpp` (Gates 1–3), `wled00/ota_update.cpp` + `wled_metadata.cpp` (Gate 4); `RaceLink_Host/racelink/services/ota_service.py` (`_wled_attempt_unlock`); `RaceLink_WLED/racelink_wled.cpp` (`otaSameSubnet = false` usermod override) |
 | `docs/roadmap.md` | (forward-looking commitments — no backing code yet) |

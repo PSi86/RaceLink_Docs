@@ -157,6 +157,7 @@ nav:
       - Deterministic WLED effects: reference/deterministic-effects.md
       - Broadcast ruleset: reference/broadcast-ruleset.md
       - Wire timing — per-packet wall-clock: reference/wire-timing.md
+      - WLED OTA gate matrix: reference/wled-ota-gates.md
       - Scene file format: reference/scene-format.md
       - Web API: reference/web-api.md
       - SSE channels & state scopes: reference/sse-channels.md
