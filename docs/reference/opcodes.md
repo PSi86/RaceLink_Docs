@@ -614,8 +614,9 @@ against compile-time `RACELINK_DEFAULT_*` constants and overwrites
 the runtime globals if they differ. The mechanism prevents
 per-device drift in settings that affect cross-device synchronisation
 and visible uniformity — most importantly the V3↔V4 Strobe-drift
-case (see
-[`../RaceLink_WLED/dev-session-2026-05-sync-investigation.md`](../RaceLink_WLED/dev-session-2026-05-sync-investigation.md)).
+case. The enforced set (FPS, ABL, gamma correction, AP open
+behaviour) is documented in
+[`../RaceLink_WLED/operator-setup.md` §"RaceLink-enforced LED defaults"](../RaceLink_WLED/operator-setup.md#racelink-enforced-led-defaults).
 
 The price is that operator UI changes to those settings get reverted
 on every reboot. That is exactly the desired property for fleet

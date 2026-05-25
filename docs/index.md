@@ -79,7 +79,7 @@ section by section.
    hardware targets, build flags, USB framing.
 2. [`RaceLink_WLED/README.md`](RaceLink_WLED/README.md) — build profiles per hardware
    variant, release workflow.
-3. [`concepts/deterministic-effects.md`](concepts/deterministic-effects.md) —
+3. [`reference/deterministic-effects.md`](reference/deterministic-effects.md) —
    which WLED effects render identically when only `strip.timebase`
    is synced (prerequisite for offset mode + ARM-on-SYNC).
 4. [`reference/wire-protocol.md`](reference/wire-protocol.md) — the wire format

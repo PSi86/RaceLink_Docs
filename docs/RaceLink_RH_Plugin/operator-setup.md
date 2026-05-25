@@ -328,7 +328,7 @@ Race events fire automatically via the bindings configured pre-race.
 * If a node is stuck in offset mode (a previous cascade scene
   didn't clean up), run a `offset_group(mode=none)` scene to
   flush state. See
-  [`../concepts/opcodes.md`](../concepts/opcodes.md)
+  [`../reference/opcodes.md`](../reference/opcodes.md)
   §"Leaving offset mode".
 
 ---
@@ -429,7 +429,7 @@ For the broader troubleshooting index, see
   operator workflow inside the shared WebUI.
 * [`../RaceLink_Host/webui-guide.md`](../RaceLink_Host/webui-guide.md) —
   shared WebUI structure and lifecycle.
-* [`../concepts/opcodes.md`](../concepts/opcodes.md) — wire-opcode
+* [`../reference/opcodes.md`](../reference/opcodes.md) — wire-opcode
   pragmatic explanations.
 * [`../RaceLink_Host/architecture.md`](../RaceLink_Host/architecture.md) §"UI Scope
   Matrix" — the full state-scope routing matrix.

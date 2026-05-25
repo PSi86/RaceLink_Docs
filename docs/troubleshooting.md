@@ -88,9 +88,9 @@ mode. Recent WLED-usermod firmware fixes this via a persistent
 per-device phase offset re-asserted after every SYNC — flash the
 node. For older firmware, prefer state-machine effects
 (*Traffic Light*, *Color Wipe*, *Scan*) when authoring offset scenes.
-→ [`concepts/opcodes.md`](concepts/opcodes.md) §"Cyclic-effect phase-lock"
+→ [`reference/opcodes.md`](reference/opcodes.md) §"Cyclic-effect phase-lock"
 (canonical explanation);
-[`concepts/deterministic-effects.md`](concepts/deterministic-effects.md);
+[`reference/deterministic-effects.md`](reference/deterministic-effects.md);
 [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md) §6a.
 
 ## WebUI

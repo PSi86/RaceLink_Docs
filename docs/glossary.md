@@ -140,55 +140,28 @@ the same as any unpaired idle node). See
 A short-lived, animated visual overlay on the WLED node's main
 segment that signals a status event (pair confirmation, probe
 rejection, headless enter/exit, operator-initiated locate). Lives
-in a wire-stable catalog in `racelink_indicators.h` so all four
-component repos consume the same identifier table. Triggered
+in a wire-stable catalog in `racelink_indicators.h`. Triggered
 either locally (e.g. `OPC_SET_GROUP` arrives → `IND_PAIR_CONFIRMED`
-for 5 s) or remotely via the `OPC_INDICATE` wire packet.
-
-The receiver renders the overlay via WLED's
-`Usermod::handleOverlayDraw()` callback — a per-frame
-pixel-overwrite that fires after the segment effect has rendered
-and before the LEDs are pushed. The underlying effect's segment
-mode, palette, colour slots, and `SEGENV` runtime state are
-**never touched**, so fleet phase sync is preserved automatically
-and the pre-indicator visual reappears the instant the overlay
-flag clears. A new wire command (`OPC_HEADLESS` / `OPC_CONTROL` /
-`OPC_PRESET`) preempts the overlay; passing `durationSec == 0`
-cancels it explicitly.
-
-The catalog is **STROBE-only** by design, pinned to the
-WLED-effective speed range `235..252` on a 3-tier urgency code
-(235 slow / positive, 245 medium / informational, 250 fast /
-error). Colour encodes the category via RGB channel dominance.
-Pure R / G / B / W are deliberately avoided so an indicator
-cannot be confused with a normal scene. See
-[`reference/wire-protocol.md` §`P_Indicate`](reference/wire-protocol.md#p_indicate-status-indicator-overlay-opc_indicate-2-b-fixed)
-and [`RaceLink_WLED/operator-setup.md` §"Indicators"](RaceLink_WLED/operator-setup.md#indicators).
+for 5 s) or remotely via the `OPC_INDICATE` wire packet; a
+`durationSec == 0` payload cancels an active indicator. The full
+catalog, rendering model, and preemption rules live in
+[`RaceLink_WLED/indicators.md`](RaceLink_WLED/indicators.md); the
+wire format is in
+[`reference/wire-protocol.md` §`P_Indicate`](reference/wire-protocol.md#p_indicate-status-indicator-overlay-opc_indicate-2-b-fixed).
 
 ### Headless Mode
 
 An operating mode in which a single WLED node temporarily acts as the
 master for the rest of the fleet — assigning groups, broadcasting
-scenes and brightness changes — so a session can run without a
-Gateway+Host pair. Activated by a deliberate five-click gesture on the
-node's boot button after a 1.5-second `IDENTIFY_REPLY` probe verifies
-no real master is alive on the channel. The promotion is **persisted
-across reboots**: a power-cycled headless master re-runs the probe and
-re-claims the role if no real Gateway has taken over in the meantime,
-then proactively re-binds every previously paired slave via a
-spaced-out `SET_GROUP` sweep from its persistent registry (up to 40
-`(addr3, groupId)` records, 50 ms between sends). The master self-assigns **Group 1** while
-active; slaves are assigned from **Group 2** upward (Group 0 stays
-reserved for the unconfigured pool, 255 for the broadcast
-pseudo-group). A real Gateway **always wins** — any M2N traffic from a
-non-self sender (typically `OPC_SET_GROUP` from a Gateway that came
-back up, or its 30-second `OPC_SYNC` autosync) causes the headless
-master to step down immediately. Manual exit via the 5-click gesture
-clears the registry + counter + own group id synchronously; involuntary
-demotions (Gateway takeover / autosync detection) leave the registry
-intact for a possible later re-promotion. See
-[`RaceLink_WLED/operator-setup.md`](RaceLink_WLED/operator-setup.md)
-§"Headless Mode".
+scenes and brightness — so a session can run without a Gateway+Host
+pair. Activated by a five-click on the node's boot button after a
+1.5-second `IDENTIFY_REPLY` probe verifies no real master is on the
+channel. The master self-assigns **Group 1** (slaves get Group 2..254;
+Group 0 = unconfigured pool, 255 = broadcast pseudo-group). A real
+Gateway **always wins** — any M2N traffic from a non-self sender
+causes immediate step-down. The full operator workflow (activation,
+pairing, scene catalog, persistence, proactive re-bind) lives in
+[`RaceLink_WLED/headless-mode.md`](RaceLink_WLED/headless-mode.md).
 
 ### Scene
 
@@ -246,7 +219,7 @@ link. Renders one tab per declared capability (WLED, STARTBLOCK,
 value disagrees with the host's stored intent. See
 [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md)
 §4 for the operator workflow and
-[`concepts/opcodes.md`](concepts/opcodes.md#live-read-and-divergence-resolution)
+[`reference/opcodes.md`](reference/opcodes.md#live-read-and-divergence-resolution)
 for the wire-level details.
 
 ### Master pill
@@ -283,14 +256,14 @@ network at a time; the boundary is enforced server-side at every
 bulk regroup. A single-gateway deployment runs on the "Default"
 network created by the v1→v2 persistence migration; multi-gateway
 setups can have several networks at once with the
-[separation rule](concepts/channels.md#separation-rule) keeping
+[separation rule](reference/channels.md#separation-rule) keeping
 their radios out of each other's way. See
 [`RaceLink_Host/multi-network.md`](RaceLink_Host/multi-network.md).
 
 ### Channel
 
 A named slot in the host's region table (max five per region —
-see [`concepts/channels.md`](concepts/channels.md)). Picking a
+see [`reference/channels.md`](reference/channels.md)). Picking a
 channel for a network resolves to the seven wire-format
 `P_RfConfig` fields. The Network Manager dialog binds to channels;
 the Advanced (raw `rf_config`) flow bypasses the table.
@@ -508,7 +481,7 @@ via `OPC_SYNC`, so deterministic effects render identically — a
 prerequisite for offset mode and ARM-on-SYNC.
 
 The phase-lock issue (covered in
-[`concepts/opcodes.md`](concepts/opcodes.md) §"Cyclic-effect
+[`reference/opcodes.md`](reference/opcodes.md) §"Cyclic-effect
 phase-lock") is what happens when this synchronisation also makes
 time-dependent cyclic effects
 phase-lock instead of staying offset; the firmware applies a

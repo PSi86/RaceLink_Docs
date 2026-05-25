@@ -331,16 +331,20 @@ The old `wait_rx_window` helper remains for backwards compatibility but is depre
 
 `EV_RX_WINDOW_OPEN` / `EV_RX_WINDOW_CLOSED` stay in the wire format (the Core header is frozen) but are debug-only from the Host's perspective.
 
-## Multi-Transport runtime (Stage 2 / Stage 3)
+## Multi-Transport runtime
 
-The pre-Stage-2 host modelled "the gateway" as a single
-`controller.transport` slot. Stage 2 introduced multi-network
-support: the same host can drive several USB-attached gateways,
-each carrying its own LoRa channel and its own subset of
-networks/devices. The runtime keeps that addition transparent at
-N=1 — every Stage-2/3 helper falls back to the singleton
-behaviour when only one transport is attached — but the
-internals are now built around a transport **list**.
+The host's multi-network runtime drives several USB-attached
+gateways from one process, each gateway carrying its own LoRa
+channel and its own subset of networks/devices. Internally the
+runtime is built around a transport **list**; every helper falls
+back to the singleton behaviour when only one transport is
+attached, so a single-gateway deployment runs byte-identically to
+the pre-multi-network host.
+
+See the §"Migration history" appendix at the end of this file for
+the stage-by-stage rollout history (Stage 2 / Stage 3 / Stage 4 /
+Stage 5) — useful for archeology, not needed to read the current
+behaviour.
 
 ### Transport list + per-network routing helpers
 
@@ -351,7 +355,8 @@ internals are now built around a transport **list**.
 * `controller.transport_for_network(network_id)` — resolves via
   `RL_Network.gateway_mac` ↔ `transport.ident_mac`. Falls back
   to the only transport when N=1 and the network has no
-  `gateway_mac` yet (Stage-2 default-bind path).
+  `gateway_mac` yet (default-bind path for single-gateway
+  deployments).
 * `controller.transport_for_device(addr)` — looks up the device,
   reads its `network_id`, delegates to `transport_for_network`.
   Used by every unicast send so a packet targeted at a device
@@ -366,10 +371,9 @@ self.ident_mac` (in `_emit` / `_emit_tx`) so downstream matchers
 the host having to thread the transport reference through every
 event.
 
-### PendingMatcher gateway_id (Stage 3 Part C)
+### PendingMatcher gateway_id
 
-The `PendingMatcherRegistry` was promoted from "one shared
-registry" to a per-gateway dict
+The `PendingMatcherRegistry` is a per-gateway dict
 (`{ident_mac → PendingMatcherRegistry}`) so two devices on
 different gateways that happen to share their last-3 MAC bytes
 cannot collide in the fast-bucket lookup. The
@@ -379,7 +383,7 @@ N-reply); wildcard matchers (discovery, fleet-wide broadcast
 collectors) may still omit it.
 
 ```python
-# Stage 3: registry refuses a unicast matcher without gateway_id.
+# Registry refuses a unicast matcher without gateway_id.
 m = PendingMatcher(
     sender_filter=frozenset({mac_last3}),
     expected_ack_of=OPC_SET_GROUP,
@@ -409,7 +413,7 @@ The SSE `master` event broadcasts the unified
 WebUI's gateway store reads `networks[0]` as the legacy
 single-master for back-compat with the pre-Stage-4 frontend.
 
-### enumerate_all boot path (Stage 2 Part 5)
+### enumerate_all boot path
 
 `controller.discoverPort` walks two paths depending on the
 operator's `psi_comms_port` setting:
@@ -450,7 +454,7 @@ RF migration via `rf_migration_service`), `create_network`,
 `rebind`. Token-gated so a stale wizard answer can't override
 a re-evaluated record.
 
-### RF migration engine (Stage 3 Part E)
+### RF migration engine
 
 `racelink/services/rf_migration_service.py::migrate_network_to`
 is the four-phase pipeline:
@@ -473,7 +477,7 @@ On success the engine calls
 `bind_service.re_evaluate(ident_mac)` so the SSE
 `gateway_conflict` flips to `gateway_bound` automatically.
 
-### Channel-Scan service (Stage 3 Part F)
+### Channel-Scan service
 
 `racelink/services/channel_scan_service.py::scan_region`
 walks a region's channel table on one gateway. Per channel:
@@ -484,7 +488,9 @@ volatile-switch (no NVS), 800 ms settle, broadcast
 gateway's pre-scan RF config on exit so a mid-scan exception
 doesn't leave the gateway on the wrong channel.
 
-### Cross-network fan-out (Stage 3 Part G → BroadcastTarget refactor)
+<a id="cross-network-fan-out-stage-3-part-g--broadcasttarget-refactor"></a>
+
+### Cross-network fan-out (BroadcastTarget)
 
 Broadcast routing is governed by an explicit
 [`BroadcastTarget`](https://github.com/PSi86/RaceLink_Host/blob/main/racelink/transport/broadcast_target.py)
@@ -496,7 +502,7 @@ warning logged for migration.
 
 **Why explicit:** in a multi-network deployment a scene's
 target network set is independent of UI focus (the operator may
-view network A while a scene runs on B). Stage 3 Part G's
+view network A while a scene runs on B). The pre-`BroadcastTarget`
 implicit "all attached" sync fan-out caused two real problems:
 
 1. **Performance** — `GatewayService.send_sync` looped sequentially
@@ -674,10 +680,9 @@ indicator that N gateways are involved.
 
 ### Per-group network migration
 
-Stage 4 follow-up. `migrate_network_to` already pushes a whole
-network onto a new RF config; this complementary API moves one or
-more groups (with all their members) from one existing network onto
-another existing network. Network membership is a per-group
+`migrate_network_to` pushes a whole network onto a new RF config;
+this complementary API moves one or more groups (with all their
+members) from one existing network onto another existing network. Network membership is a per-group
 property (one network per group), so the operator-facing API and
 the WebUI both operate exclusively at group granularity — per-device
 migration is an internal helper, not a public surface. Key
@@ -751,7 +756,7 @@ exclusively at group granularity keeps the rule consistent
 end-to-end without a separate "device drifted off its group's
 network" recovery path.
 
-### Network-boundary enforcement (Stage 3 Part B)
+### Network-boundary enforcement
 
 `racelink/domain/network_boundary.py::validate_group_membership`
 runs at every bulk regroup and raises
@@ -990,3 +995,59 @@ the separate `RaceLink_RH-plugin` repository:
 | `racelink/pages/**` (now empty) and `racelink/static/**` | Shared WebUI assets — `racelink/static/dist/` carries the committed Vite build of the Vue SPA |
 | `frontend/**` | Vue 3 + Vite source for the SPA (built into `racelink/static/dist/`) |
 | `controller.py` | Host controller and runtime coordinator |
+
+## Migration history
+
+Stage-by-stage rollout history for the §"Multi-Transport runtime"
+features above — kept as an appendix so the body of that section
+reads as the current contract, not as a chronicle. Detailed
+commit-level breakdowns (SHAs, test counts, per-part commits) live
+in the maintainer-internal engineering ledger.
+
+* **Stage 0 / 1 / 1.5** (pre-2026-05-21) — pre-sync helpers, the
+  additive wire-protocol surface (`OPC_RF_CONFIG` /
+  `OPC_GET_RF_CONFIG` / `GW_CMD_*_RF_CONFIG` / `EV_RF_CHANGED`),
+  single-gateway onboarding. Single-gateway hosts shipped first;
+  multi-gateway support was additive.
+* **Stage 2** (2026-05-21 release) — host-side multi-transport
+  runtime. Schema v2 adds `RL_Network` with `network_id` on every
+  device + group; `controller._transports` becomes a list with
+  the legacy `controller.transport` slot as a property over
+  `_transports[0]`. New routing helpers
+  `transport_for_network` / `transport_for_device` /
+  `transport_for_group`; `PendingMatcher.gateway_id` filter
+  field; `GatewaySerialTransport.enumerate_all()` boot path.
+  Idempotent v1→v2 persistence migration; single-gateway UX
+  byte-identical to the pre-Stage-2 host.
+* **Stage 3** (same release, seven Parts A-G) — channels, policy,
+  bind state machine, migration, fan-out. Part A: the shipped
+  channel tables + the `validate_networks_separation` validator.
+  Part B: hard network-boundary enforcement on bulk regroups.
+  Part C: `PendingMatcher.gateway_id` becomes required for
+  concrete-sender matchers. Part D: gateway-bind state machine
+  (`pending` / `bound` / `conflict` / `unbound`). Part E: the
+  four-phase RF migration engine. Part F: Channel-Scan service.
+  Part G: cross-network fan-out — the implicit "all attached"
+  default that this section's anchor still carries in its slug.
+* **Stage 4** (same release, three frontend blocks) — Foundation
+  (network store + DeviceTable column + sidebar filter),
+  Wizards (`GatewayBindWizard` + `ChannelScanDialog`), Network
+  Manager + Setup-Change Assistant + scene picker.
+* **Stage 5** (same release) — documentation pass. The §"Topic →
+  Document" tables in `STRUCTURE.md` were extended in this stage
+  to cover the new docs.
+* **2026-05-22 reconnect-hardening pass** — six bench-test rounds
+  on a Pi against two physical gateways. Surgical fixes to the
+  per-transport detach path, `schedule_reconnect` graceful
+  fallback, `enumerate_all(exclude_ports=...)`, `_attach_transport`
+  idempotency, gateway labels in debug logs.
+* **2026-05 unreleased: BroadcastTarget refactor** — the
+  cross-network fan-out section above is the post-refactor
+  contract. Replaced the implicit Stage-3-Part-G "all attached"
+  default with an explicit `BroadcastTarget` scope object, added
+  the threaded `broadcast_fanout` helper (parallel airtime
+  instead of summed), and introduced
+  `scene_network_ids(scene, controller)` so the runner can scope
+  `sync` actions to the networks the scene actually touches. A
+  later iteration on the same branch added the operator-pinned
+  `scene.network_scope` field with Auto / Explicit modes.

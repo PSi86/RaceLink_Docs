@@ -8,7 +8,7 @@ the deliberate exceptions that exist by design.
 
 If this page and `racelink_proto.h` disagree, the **header
 wins** — file a bug. See also [Wire protocol
-reference](wire-protocol.md), [Opcodes](../concepts/opcodes.md)
+reference](wire-protocol.md), [Opcodes](opcodes.md)
 and [Scene format](scene-format.md) for adjacent material.
 
 ## Two-stage filter pipeline
@@ -100,7 +100,7 @@ currently has an active offset configuration (`E`).
 
 The gate is the firmware mechanism behind Strategy A
 ("broadcast formula") in
-[concepts/opcodes.md](../concepts/opcodes.md): one broadcast
+[opcodes.md](opcodes.md): one broadcast
 `OPC_OFFSET` configures every offset-eligible device, and the
 follow-up broadcast `OPC_CONTROL(F=1)` is then accepted only by
 those same devices because their `E` bit was raised by the
@@ -244,7 +244,7 @@ the planned evolution.
 
 * [Wire protocol reference](wire-protocol.md) — header layout,
   USB framing, opcode constants.
-* [Opcodes (concepts)](../concepts/opcodes.md) — Strategy A / B
+* [Opcodes](opcodes.md) — Strategy A / B
   / C for `OPC_OFFSET`, `OPC_CONTROL` semantics.
 * [Scene format](scene-format.md) — how scene-action `target`
   fields map onto the rules above.

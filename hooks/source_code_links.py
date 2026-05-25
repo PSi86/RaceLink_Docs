@@ -81,6 +81,12 @@ RULES = [
     ("reference/wire-protocol.md",    "../gen_racelink_proto_py.py",  HOST + "/gen_racelink_proto_py.py"),
     ("reference/wire-protocol.md",    "../../RaceLink_Gateway/",      GATEWAY + "/"),
 
+    # reference/wled-ota-gates.md (lifted from developer-guide.md in
+    # Gruppe 8) keeps the same workstation-style refs the source
+    # section carried
+    ("reference/wled-ota-gates.md",   "../racelink/",                 HOST + "/racelink/"),
+    ("reference/wled-ota-gates.md",   "../../WLED%20LoRa/WLED/",      WLED + "/"),
+
     # RaceLink_Host/developer-guide.md references the WLED fork
     # via the workstation-style "WLED LoRa/WLED/" path
     ("RaceLink_Host/*.md",            "../../WLED%20LoRa/WLED/",      WLED + "/"),
@@ -90,9 +96,9 @@ RULES = [
     ("RaceLink_Host/*.md",            "../racelink_headless.h",       WLED + "/racelink_headless.h"),
     ("RaceLink_Host/*.md",            "../racelink_indicators.h",     WLED + "/racelink_indicators.h"),
 
-    # docs/concepts/deterministic-effects.md (was wled/docs/) uses
-    # "../../wled00/..." for the WLED tree
-    ("concepts/deterministic-effects.md", "../../wled00/",            WLED + "/wled00/"),
+    # docs/reference/deterministic-effects.md (was wled/docs/, then
+    # docs/concepts/) uses "../../wled00/..." for the WLED tree
+    ("reference/deterministic-effects.md", "../../wled00/",           WLED + "/wled00/"),
 
     # docs/RaceLink_WLED/*.md (incl. dev-session retrospectives) reference
     # the upstream WLED tree directly via "wled00/..." (no "../")

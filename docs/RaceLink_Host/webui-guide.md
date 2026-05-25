@@ -1,13 +1,21 @@
-# Host WebUI — Operating Concept
+# Host WebUI — Tour
 
-How the RaceLink Host WebUI is structured, what each piece is for,
-and how to read its lifecycle and state signalling. Companion to
-[`operator-guide.md`](operator-guide.md) (which is task-shaped) and
-[`opcodes.md`](../concepts/opcodes.md) (which explains the wire opcodes).
+A screen-by-screen tour of the RaceLink Host WebUI: what's on each
+page, what each header / banner / pill means, and how the
+front-end signals state. Workflow recipes ("Click + New, then…")
+live in the companion docs, not here:
 
-> **Audience.** Operators who already know *what* they want to do
-> (run a scene, update firmware) and want to know *how* the WebUI
-> behaves while they do it.
+* Operator workflow (Discover → Group → Specials → Run, OTA, safety
+  rules): [`operator-guide.md`](operator-guide.md).
+* Scene authoring (RL presets, action kinds, target picker, offset
+  mode, Stop-on-error, scope on multi-network):
+  [`scene-authoring.md`](scene-authoring.md).
+* Wire opcodes referenced on screen:
+  [`../reference/opcodes.md`](../reference/opcodes.md).
+
+> **Audience.** Operators who want a map of what every piece of the
+> WebUI is showing, and developers looking up which on-screen
+> element corresponds to which protocol concept.
 
 The host WebUI is mounted at `/racelink` in both hosting modes:
 
@@ -86,7 +94,7 @@ it appears (top-level effects, `Offset Group` containers,
 **Device**. Container scope hides Device. Selecting every known
 group manually shows a hint that the save will collapse to
 **Broadcast** — see the
-[operator-guide section](operator-guide.md#the-target-picker-broadcast--groups--device)
+[scene-authoring section](scene-authoring.md#the-target-picker-broadcast--groups--device)
 and the [Broadcast Ruleset](../reference/broadcast-ruleset.md)
 for the wire-level rules.
 
@@ -199,13 +207,12 @@ Status with many devices, Presets Download) run through the host's
 ![The Discover Devices dialog — target-group selector and the result list](
   ../assets/screenshots/discover-dialog.png)
 
-* Pre-flight: pick a default group for newly-found devices
-  ("Unconfigured" is the safe default).
-* On **Start**: the host fires a broadcast `OPC_DEVICES`, opens an
-  RX window of a few seconds, collects `IDENTIFY_REPLY` packets,
-  shows them as they arrive in the dialog's table.
-* On done: the dialog shows the discovery summary; the underlying
-  device table updates via SSE `refresh.what=["devices"]`.
+The dialog carries a target-group selector ("Unconfigured" is the
+default) and a result list that populates as `IDENTIFY_REPLY`
+packets arrive on the wire after the broadcast `OPC_DEVICES`. When
+the task ends, the underlying device table updates via SSE
+`refresh.what=["devices"]`. For the operator-side recipe see
+[`operator-guide.md` §2](operator-guide.md#2-discover-devices).
 
 ### Firmware Update (OTA) dialog
 
@@ -273,8 +280,10 @@ host POSTs `/settings/sec` to clear the OTA-lock and flip
 `cfg.json` — first-time OTA on a device pays this cost, subsequent
 OTAs run cleanly.
 
-For the OTA gate matrix (developer view), see
-[`developer-guide.md`](developer-guide.md) §"WLED OTA gate matrix".
+For the OTA gate matrix (developer view) see
+[`../reference/wled-ota-gates.md`](../reference/wled-ota-gates.md);
+for the operator-side recipe see
+[`operator-guide.md` §"Firmware updates"](operator-guide.md#firmware-updates-take-minutes-let-them-finish).
 
 ### Get Status (status poll)
 
@@ -317,7 +326,7 @@ actions automatically — the host re-writes scene records when the
 preset record changes.
 
 For the wire-level mapping of an RL preset to `OPC_CONTROL` see
-[`opcodes.md`](../concepts/opcodes.md).
+[`opcodes.md`](../reference/opcodes.md).
 
 ### WLED Presets dialog
 
@@ -525,38 +534,41 @@ exclusive lock.
 
 ---
 
-## Smoke-test sequence — verify the WebUI works end-to-end
+## Verifying the WebUI is healthy
 
-1. **Open the WebUI.** Master pill should turn cyan (`IDLE`)
-   within 1 s of page load.
-2. **Click Discover Devices.** Modal opens, pick "Unconfigured",
-   click Start. Devices appear in the dialog's table and in the
-   main device list.
-3. **Move devices to a real group.** Sidebar group selection,
-   tick a row, **Move**. The masterbar's task summary shows the
-   per-device count.
-4. **Author an RL preset.** Click *Manage RL Presets*. Add a
-   preset, name it, save.
-5. **Author a scene.** Go to Scenes page, **+ New**, add an
-   `Apply RL Preset` action targeting your group, **Save**.
-6. **Run the scene.** Click **Run**. The action row borders go
-   green; cost badge shows `actual: NNN ms`.
-7. **Hover the master pill.** Tooltip explains the IDLE state.
-8. **Disconnect the gateway USB.** Within 50 ms the pill should go
-   red with the `LINK_LOST` banner. Reconnect. Within 5 s the
-   pill returns to IDLE and the banner clears with a toast.
+A quick spot-check to confirm the front-end is wired up correctly
+end-to-end. Operator workflow recipes live in
+[`operator-guide.md`](operator-guide.md); the items below are the
+*UI-side* signals you should see while running through them.
 
-If any of those steps misbehave, see
+* **On page load.** Master pill turns cyan (`IDLE`) within ~1 s.
+* **During a Discover.** The dialog's result list populates as
+  replies arrive (not just after the timeout).
+* **During a bulk-move.** The masterbar task summary shows the
+  per-device count; the sidebar's `M / N` count on the
+  destination group updates over SSE.
+* **During a Run.** Action rows border-colour green / red /
+  amber; the cost badge gains an `actual: NNN ms` segment when
+  the run completes.
+* **When the gateway USB drops.** Within ~50 ms the pill goes
+  red with the `LINK_LOST` banner; within ~5 s of reconnect the
+  pill returns to IDLE and the banner clears with a green toast.
+
+If any of those signals misbehave, see
 [`../troubleshooting.md`](../troubleshooting.md).
 
 ---
 
 ## See also
 
-* [`operator-guide.md`](operator-guide.md) — the task-shaped operator
-  walkthrough (Discover → Group → Configure → Author → Run).
-* [`opcodes.md`](../concepts/opcodes.md) — pragmatic explanation of
-  `OPC_CONTROL` / `OPC_OFFSET` / `OPC_SYNC`.
+* [`operator-guide.md`](operator-guide.md) — the task-shaped
+  operator walkthrough (Discover → Group → Configure → Run, plus
+  safety rules).
+* [`scene-authoring.md`](scene-authoring.md) — RL presets, scene
+  composition, target picker, offset mode, scope on
+  multi-network, run flow.
+* [`../reference/opcodes.md`](../reference/opcodes.md) — pragmatic
+  explanation of `OPC_CONTROL` / `OPC_OFFSET` / `OPC_SYNC`.
 * [`ui-conventions.md`](ui-conventions.md) — button vocabulary,
   toast / confirm conventions (developer-side).
 * [`../RaceLink_RH_Plugin/operator-setup.md`](../RaceLink_RH_Plugin/operator-setup.md) —

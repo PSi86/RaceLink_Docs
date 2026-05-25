@@ -47,7 +47,7 @@ site.
 |---|---|---|
 | `RaceLink_WLED/README.md` | `RaceLink_WLED/readme.md` | Cleaned: dropped duplicated system overview |
 | `RaceLink_WLED/operator-setup.md` | new (gap G3) | Operator setup that did not exist in the source |
-| `concepts/deterministic-effects.md` | `RaceLink_WLED/docs/effects-deterministic.md` | Verbatim |
+| `reference/deterministic-effects.md` | `RaceLink_WLED/docs/effects-deterministic.md` | Verbatim (originally under `concepts/`; relocated in Gruppe 5) |
 
 ### `RaceLink_RH_Plugin/` — RotorHazard adapter
 

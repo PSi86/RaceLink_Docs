@@ -102,21 +102,21 @@ The ASCII-only constants are below; on USB they appear after the
 | `OPC_CONTROL` | `0x08` | M2N | `OPC_ACK` | variable (3..21 B) | Direct effect parameters |
 | `OPC_OFFSET` | `0x09` | M2N | RESP_NONE | variable (2..7 B) | Configure offset for ARM_ON_SYNC / OFFSET_MODE |
 | `OPC_GET_CONFIG` | `0x0A` | M2N | same opcode N→M | `P_GetConfig` (1 B) → `P_Config` (5 B) | Read-back of an `OPC_CONFIG`-style property |
-| `OPC_HEADLESS` | `0x0B` | M2N | RESP_NONE | `P_Headless` (2 B) | Headless-Mode catalog trigger; receivers expand via the shared catalog in `racelink_headless.h`. Broadcast-shaped. Renamed from `OPC_SCENE` on 2026-05-17 to keep the `OPC_SCENE` name free for a future host-level RaceLink-Scene opcode; wire byte value `0x0B` is unchanged. |
+| `OPC_HEADLESS` | `0x0B` | M2N | RESP_NONE | `P_Headless` (2 B) | Headless-Mode catalog trigger; receivers expand via the shared catalog in `racelink_headless.h`. Broadcast-shaped. (Renamed 2026-05-17 — see §"Naming history" appendix.) |
 | `OPC_INDICATE` | `0x0C` | M2N | RESP_NONE | `P_Indicate` (2 B) | Short-lived status-indicator overlay; receivers expand via the shared catalog in `racelink_indicators.h`. Broadcast or unicast. |
 | `OPC_RF_CONFIG` | `0x0D` | M2N | `OPC_ACK` | `P_RfConfig` (12 B) | Push new LoRa RF settings to a node. Unicast-only — broadcast is firmware-forbidden (would brick every reachable node). Node validates, persists to NVS, ACKs, then reboots ~50 ms later onto the new settings. |
 | `OPC_GET_RF_CONFIG` | `0x0E` | M2N | same opcode N→M | `[reserved (1)]` → `P_RfConfig` (12 B) | Read-back of a node's current NVS RF settings. The reserved byte MUST be `0`; non-zero is a structurally invalid request (no reply, mirrors the `OPC_GET_CONFIG` unknown-option path). |
 | `OPC_ACK` | `0x7E` | both | — | `ack body` (4 B) | Used as a reply only |
 
-`BODY_MAX` is 22 bytes; `OPC_CONTROL` is the first opcode that pushes
-that bound (its largest body is 21 B). The receiver enforces
-`BODY_MAX` and rejects oversize bodies as malformed.
+`BODY_MAX` is 22 bytes; `OPC_CONTROL` is the first opcode that
+pushes that bound (its largest body is 21 B). The receiver
+enforces `BODY_MAX` and rejects oversize bodies as malformed.
 
-`Phase D rename note (2026-04-25):` what is now `OPC_PRESET` (0x04)
-was historically called `OPC_CONTROL`, and what is now `OPC_CONTROL`
-(0x08) was `OPC_CONTROL_ADV`. The opcode *values* did not change —
-older firmware still interoperates byte-for-byte. Only the C
-identifiers were renamed for clarity.
+For historical opcode renames (the same wire bytes carrying
+different identifiers over time), see the §"Naming history"
+appendix at the end of this document. Wire-format readers should
+treat the byte values as canonical; the C identifiers are the
+naming layer on top of them.
 
 ## Body layouts
 
@@ -345,7 +345,7 @@ but it drives both the host UX and the read-back support:
 
 These option codes set persistent host-authorised overrides of the
 device's compile-time RaceLink defaults. See
-[`../concepts/opcodes.md` §"OPC_CONFIG — device configuration"](../concepts/opcodes.md#opc_config-device-configuration)
+[`opcodes.md` §"OPC_CONFIG — device configuration"](opcodes.md#opc_config-device-configuration)
 for the override semantics, persistence, and Policy A vs Policy B
 distinction.
 
@@ -412,14 +412,11 @@ packed per-option in the same little-endian layout as the matching
 sceneId (1) | brightness (1)
 ```
 
-> **Naming note.** Renamed from `OPC_SCENE` / `P_Scene` on 2026-05-17
-> so the bare term "Scene" stays free for a future host-level
-> RaceLink-Scene opcode (today's host-side RaceLink Scenes travel as
-> `OPC_CONTROL`; the host-level rename is a separate, later step).
-> Wire byte value `0x0B` and body layout are unchanged. The field
-> name `sceneId` and the receiver-side helper / enum names keep
-> "scene" terminology because each catalog row is internally still
-> called a "Headless scene".
+Renamed from `OPC_SCENE` / `P_Scene` on 2026-05-17; see the
+§"Naming history" appendix for the wire-vs-identifier guarantee.
+The receiver-side helper / enum names keep "scene" terminology
+because each catalog row is internally still called a "Headless
+scene".
 
 * `sceneId` — wire-stable identifier from the shared Headless catalog
   in `racelink_headless.h::HeadlessSceneId` (`SCENE_OFFSET_BREATHE = 0`,
@@ -492,7 +489,7 @@ promotion, red = error, red+blue = operator-locate, mixed warm =
 demotion). Pure red / green / blue / white are deliberately
 avoided so an indicator cannot be confused with a normal scene
 colour. See
-[`RaceLink_WLED/operator-setup.md` §Indicators](../RaceLink_WLED/operator-setup.md#indicators)
+[`RaceLink_WLED/indicators.md`](../RaceLink_WLED/indicators.md)
 for the full catalog table and rendering details.
 
 Reply: **none** (`RESP_NONE`). Wire shape is identical for broadcast
@@ -570,7 +567,7 @@ config — the host can use that to render "we tried X, gateway
 stayed on Y".
 
 The shipped channel table in
-[`docs/concepts/channels.md`](../concepts/channels.md) is what
+[`docs/reference/channels.md`](channels.md) is what
 the Network Manager dialog binds to; an Advanced-mode operator
 can also POST raw `rf_config` dicts to the host's
 `PUT /api/networks/{id}` endpoint to bypass the table.
@@ -901,3 +898,20 @@ across all three repos (Host, Gateway, WLED).
 | USB framing | [`racelink/transport/framing.py`](../racelink/transport/framing.py) |
 | Transport sender / reader | [`racelink/transport/gateway_serial.py`](../racelink/transport/gateway_serial.py) |
 | Drift regression test | [`tests/test_proto_header_drift.py`](../tests/test_proto_header_drift.py) |
+
+## Naming history
+
+Identifier renames over the wire's lifetime. **The wire byte values
+never changed in any of these renames** — receivers parse by byte
+value, so a binary built before the rename interoperates byte-for-
+byte with one built after. Only the C identifiers (and a few host /
+WebUI labels) moved.
+
+| Date | Old name | New name | Wire byte | Rationale |
+|---|---|---|---:|---|
+| 2026-04-25 ("Phase D") | `OPC_CONTROL` | `OPC_PRESET` | `0x04` | The legacy `OPC_CONTROL` was actually "apply a WLED preset slot". Renamed for clarity against the new direct-effect-parameter opcode below. |
+| 2026-04-25 ("Phase D") | `OPC_CONTROL_ADV` | `OPC_CONTROL` | `0x08` | Promoted to the canonical name now that the slot-apply opcode is `OPC_PRESET`. |
+| 2026-05-04 (host-side cleanup) | `wled_control` Specials function | `rl_preset` | n/a (host symbol) | The Specials picker was actually choosing an RL preset and emitting `OPC_CONTROL`. Label "WLED Control" → "RaceLink Preset". |
+| 2026-05-04 (host-side cleanup) | `wled_control` scene action kind | `rl_effect` | n/a (host symbol) | The scene action was inline effect parameters with no preset id, emitting `OPC_CONTROL`. Field set realigned to the 14-field RL-preset editor schema. |
+| 2026-05-17 | `OPC_SCENE` / `P_Scene` | `OPC_HEADLESS` / `P_Headless` | `0x0B` | Keeps the bare term "Scene" free for a future host-level RaceLink-Scene opcode (today's host-side RaceLink Scenes travel as `OPC_CONTROL`; the host-level rename is a separate, later step). Field name `sceneId` and the receiver-side helper / enum names keep "scene" terminology because each catalog row is internally still called a "Headless scene". |
+| 2026-05-17 (firmware-internal) | `IND_TX_BLIP` | `IND_PAIRING_TX` | catalog ID `5` (never on the wire) | The indicator fired for routine SYNC keepalive, drowning out the user-relevant "I'm pairing a device" cue. The narrowed semantics are reflected in the new name; the catalog ID is append-only and wire-stable. |

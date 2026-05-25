@@ -14,11 +14,9 @@ edit_uri: edit/main/docs/
 docs_dir: docs
 
 # Files that exist on disk but must not appear in the built site.
-# sources.md is a provenance ledger kept for AI/maintainer context only;
-# concepts/index.md is the landing page of the retired "Concepts" tab.
+# sources.md is a provenance ledger kept for AI/maintainer context only.
 exclude_docs: |
   sources.md
-  concepts/index.md
 
 # Files that are part of the build (reachable by URL) but intentionally
 # absent from the navigation sidebar. The four component READMEs are
@@ -139,11 +137,14 @@ nav:
 
   - User Guide:
       - Operator guide (Host): RaceLink_Host/operator-guide.md
+      - Scene authoring & RL presets: RaceLink_Host/scene-authoring.md
       - Multi-Network operator guide: RaceLink_Host/multi-network.md
-      - Host WebUI guide: RaceLink_Host/webui-guide.md
+      - Host WebUI tour: RaceLink_Host/webui-guide.md
       - Standalone install (Windows + Linux): RaceLink_Host/standalone-install.md
       - Gateway operator setup: RaceLink_Gateway/operator-setup.md
       - WLED node operator setup: RaceLink_WLED/operator-setup.md
+      - WLED Headless Mode: RaceLink_WLED/headless-mode.md
+      - WLED Indicators: RaceLink_WLED/indicators.md
       - WLED node pin configuration: RaceLink_WLED/pin-config.md
       - RotorHazard plugin (operator): RaceLink_RH_Plugin/operator-setup.md
       - Troubleshooting: troubleshooting.md
@@ -152,11 +153,12 @@ nav:
       - reference/index.md
       - Glossary: glossary.md
       - Wire protocol: reference/wire-protocol.md
-      - Opcodes (CONTROL / OFFSET / SYNC): concepts/opcodes.md
-      - Region & Channels: concepts/channels.md
-      - Deterministic WLED effects: concepts/deterministic-effects.md
+      - Opcodes (CONTROL / OFFSET / SYNC): reference/opcodes.md
+      - Region & Channels: reference/channels.md
+      - Deterministic WLED effects: reference/deterministic-effects.md
       - Broadcast ruleset: reference/broadcast-ruleset.md
       - Wire timing — per-packet wall-clock: reference/wire-timing.md
+      - WLED OTA gate matrix: reference/wled-ota-gates.md
       - Scene file format: reference/scene-format.md
       - Web API: reference/web-api.md
       - SSE channels & state scopes: reference/sse-channels.md
@@ -171,7 +173,6 @@ nav:
           - Reply matching (PendingMatcher): RaceLink_Host/reply-matching.md
       - Component internals:
           - WLED radio modules: RaceLink_WLED/radio-modules.md
-          - WLED session retrospective — V3↔V4 sync (2026-05): RaceLink_WLED/dev-session-2026-05-sync-investigation.md
           - RH plugin — manifest dependency format: RaceLink_RH_Plugin/manifest-dependency-format.md
           - RH plugin — ADR-0001 manifest dependency: RaceLink_RH_Plugin/adr-0001-manifest-dependency.md
           - RH plugin — release playbook: RaceLink_RH_Plugin/release-playbook.md
