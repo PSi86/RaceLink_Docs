@@ -2,8 +2,8 @@
 
 How the RaceLink Host WebUI is structured, what each piece is for,
 and how to read its lifecycle and state signalling. Companion to
-[`OPERATOR_GUIDE.md`](operator-guide.md) (which is task-shaped) and
-[`CONCEPTS.md`](../concepts/opcodes.md) (which explains the wire opcodes).
+[`operator-guide.md`](operator-guide.md) (which is task-shaped) and
+[`opcodes.md`](../concepts/opcodes.md) (which explains the wire opcodes).
 
 > **Audience.** Operators who already know *what* they want to do
 > (run a scene, update firmware) and want to know *how* the WebUI
@@ -91,7 +91,7 @@ and the [Broadcast Ruleset](../reference/broadcast-ruleset.md)
 for the wire-level rules.
 
 For scene format on disk, see
-[`../../reference/scene-format.md`](../reference/scene-format.md).
+[`../reference/scene-format.md`](../reference/scene-format.md).
 
 ---
 
@@ -131,7 +131,7 @@ whenever the displayed state looks wrong.
 Hover the pill for a tooltip with the full state explanation.
 
 For wire-level details on state events, see
-[`PROTOCOL.md`](../reference/wire-protocol.md) §"Gateway state machine".
+[`wire-protocol.md`](../reference/wire-protocol.md) §"Gateway state machine".
 
 ### The banner area — two-tier
 
@@ -274,7 +274,7 @@ host POSTs `/settings/sec` to clear the OTA-lock and flip
 OTAs run cleanly.
 
 For the OTA gate matrix (developer view), see
-[`DEVELOPER_GUIDE.md`](developer-guide.md) §"WLED OTA gate matrix".
+[`developer-guide.md`](developer-guide.md) §"WLED OTA gate matrix".
 
 ### Get Status (status poll)
 
@@ -317,7 +317,7 @@ actions automatically — the host re-writes scene records when the
 preset record changes.
 
 For the wire-level mapping of an RL preset to `OPC_CONTROL` see
-[`CONCEPTS.md`](../concepts/opcodes.md).
+[`opcodes.md`](../concepts/opcodes.md).
 
 ### WLED Presets dialog
 
@@ -364,15 +364,15 @@ The host derives the `refresh.what` payload from internal
 action that mutates persisted state passes a scope set to
 `save_to_db()`, and the SSE broadcast follows.
 
-This is what makes the UI feel snappy and consistent: a device
+This is what keeps the UI responsive and consistent: a device
 rename triggers `DEVICES` → `refresh.what=["devices"]` →
 `loadDevices()` reloads only the device table; group and preset
 dropdowns stay untouched.
 
 For the full mapping see
-[`../../reference/sse-channels.md`](../reference/sse-channels.md)
+[`../reference/sse-channels.md`](../reference/sse-channels.md)
 and the per-element matrix in
-[`../ARCHITECTURE.md`](architecture.md) §"UI Scope Matrix".
+[`architecture.md`](architecture.md) §"UI Scope Matrix".
 
 ---
 
@@ -547,17 +547,17 @@ exclusive lock.
    pill returns to IDLE and the banner clears with a toast.
 
 If any of those steps misbehave, see
-[`../../troubleshooting.md`](../troubleshooting.md).
+[`../troubleshooting.md`](../troubleshooting.md).
 
 ---
 
 ## See also
 
-* [`OPERATOR_GUIDE.md`](operator-guide.md) — the task-shaped operator
+* [`operator-guide.md`](operator-guide.md) — the task-shaped operator
   walkthrough (Discover → Group → Configure → Author → Run).
-* [`CONCEPTS.md`](../concepts/opcodes.md) — pragmatic explanation of
+* [`opcodes.md`](../concepts/opcodes.md) — pragmatic explanation of
   `OPC_CONTROL` / `OPC_OFFSET` / `OPC_SYNC`.
-* [`UI_CONVENTIONS.md`](ui-conventions.md) — button vocabulary,
+* [`ui-conventions.md`](ui-conventions.md) — button vocabulary,
   toast / confirm conventions (developer-side).
-* [`../../RaceLink_RH_Plugin/operator-setup.md`](../RaceLink_RH_Plugin/operator-setup.md) —
+* [`../RaceLink_RH_Plugin/operator-setup.md`](../RaceLink_RH_Plugin/operator-setup.md) —
   how the WebUI fits inside RotorHazard.

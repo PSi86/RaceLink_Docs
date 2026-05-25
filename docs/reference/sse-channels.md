@@ -208,5 +208,5 @@ configuration.
   Matrix" — full per-element matrix.
 * [`../RaceLink_Host/ui-conventions.md`](../RaceLink_Host/ui-conventions.md) —
   button vocabulary and toast / confirm conventions.
-* [`WEB_API.md`](web-api.md) — the REST endpoints that
+* [`web-api.md`](web-api.md) — the REST endpoints that
   `loadGroups()` / `loadDevices()` / preset refresh actually call.

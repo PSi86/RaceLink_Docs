@@ -275,7 +275,7 @@ in the sidebar to start a new draft.
   Preset, Sync, Delay, Offset Group, etc.) and configures its
   target and parameters via the [unified target
   picker](#the-target-picker-broadcast--groups--device).
-* The **Offset Group** action is the powerful one: drop child
+* The **Offset Group** action is the container action: drop child
   actions inside it (`Apply RL Preset`, etc.), pick which groups
   participate (via the same target picker), and configure the
   per-group offset (linear, v-shape, modulo). The cost badge
@@ -837,6 +837,6 @@ delays + airtime is roughly your end-to-end run time.
   standalone: stderr). Every broad-except path logs the
   exception type + traceback now (post-2026-04-27 sweep), so
   the log is genuinely useful.
-* Wire-level questions: see [PROTOCOL.md](../reference/wire-protocol.md).
+* Wire-level questions: see [wire-protocol.md](../reference/wire-protocol.md).
 * Code questions: see [`developer-guide.md`](developer-guide.md)
   and [`architecture.md`](architecture.md).

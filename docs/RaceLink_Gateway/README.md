@@ -188,7 +188,7 @@ The source also checks that these required definitions are present at build time
 
 For the full component table and repository URLs, see the top-level
 [the home page](../index.md). For operator-side gateway setup, see
-[`OPERATOR.md`](operator-setup.md).
+[`operator-setup.md`](operator-setup.md).
 
 ---
 
