@@ -241,12 +241,11 @@ for the wire-protocol view):
 
 ### 5. Author RL presets (optional but recommended)
 
-Open the **RL Presets** dialog from either page header. Each RL
-preset is a named snapshot of `(effect mode, speed, intensity,
-colours, brightness, flags)`. They live on the host, can be
-applied to any WLED-capable target by name in scenes, and are
-much easier to tweak than passing 14 parameters in a scene
-action every time.
+Open the **RL Presets** dialog from either page header. RL presets
+are host-stored named snapshots of effect parameters — definition in
+[`glossary.md`](../glossary.md#preset) §"Preset". Compared with
+inlining 14 parameters into every scene action, an RL preset is
+named, reusable across scenes, and easier to tweak.
 
 Click **+ New** in the dialog, name your preset, dial in the
 effect parameters, click **Save**. The cost-estimator badge in
@@ -650,17 +649,11 @@ rate they get added, so the per-device cost is independent of the
 fleet size for at least the first ~20 boards.
 
 No NetworkManager profile pre-creation is required — the host
-talks to `nmcli` directly. On a fresh Linux machine, run
-`sudo $(which racelink-setup-nmcli)` once to grant the required
-permissions, then restart RotorHazard / racelink-standalone so the
-running Python process re-establishes its polkit subject. The
-`$(which …)` form expands to the absolute path because `sudo` strips
-the venv's `bin/` from its default `secure_path`; the OTA failure
-toast also prints the exact absolute command for your install if
-`which` isn't on your PATH either. See `docs/standalone.md` for
-details. (Source-repo users without the console script can run
-`sudo bash scripts/setup_nmcli_polkit.sh` instead — the two helpers
-write the same polkit rule.)
+talks to `nmcli` directly. On a fresh Linux machine, the one-time
+polkit-grant step (`sudo $(which racelink-setup-nmcli)`, then restart
+the host) is documented in
+[`standalone-install.md`](standalone-install.md#linux-first-time-setup-for-firmware-updates)
+§"Linux first-time setup for firmware updates".
 
 The progress panel shows which device is at which stage. **Do
 not close the dialog or refresh the page during the run** —

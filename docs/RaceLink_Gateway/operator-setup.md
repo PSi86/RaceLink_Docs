@@ -88,20 +88,15 @@ re-discover from the new gateway. See
 
 ## Gateway ownership rules
 
-> **Critical:** only **one** process can own the gateway USB port at a
-> time. The host opens it with `exclusive=True`.
+Only **one** process can hold the dongle's USB port at a time — the
+host opens it with `exclusive=True`. Running `racelink-standalone`
+and a RotorHazard plugin instance against the same dongle therefore
+fails the second starter with `PORT_BUSY`.
 
-* In **standalone mode**, the host owns the gateway for the lifetime
-  of the Flask app.
-* In **RotorHazard plugin mode**, the plugin owns the gateway —
-  RotorHazard itself never opens the dongle.
-* **Never run both simultaneously** against the same dongle. The
-  second process fails with `serial.SerialException` from the
-  exclusive lock; the host UI surfaces this as a `PORT_BUSY` banner.
-
-For the deeper rationale see
-[`../RaceLink_Host/architecture.md`](../RaceLink_Host/architecture.md) §"Gateway
-Ownership".
+The full rule set (standalone vs. plugin ownership, release on
+shutdown, the two-process pitfall) lives in
+[`../RaceLink_Host/architecture.md`](../RaceLink_Host/architecture.md#gateway-ownership)
+§"Gateway Ownership".
 
 ## Common problems
 

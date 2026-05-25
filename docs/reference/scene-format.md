@@ -79,6 +79,12 @@ Every action has at minimum:
 
 ## Action kinds
 
+> **RL preset vs WLED preset.** The two `*_preset` kinds map to the
+> two distinct preset concepts defined in
+> [`../glossary.md`](../glossary.md#preset) §"Preset" — `wled_preset`
+> targets a numeric slot on the device, `rl_preset` materialises a
+> host-stored named snapshot.
+
 ### `wled_preset` — apply a WLED preset
 
 Sends `OPC_PRESET` carrying a 4-byte body with the preset slot

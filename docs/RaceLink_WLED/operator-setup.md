@@ -455,21 +455,17 @@ voltage-multiplier settings (see [`README.md`](README.md)
 
 ## Cyclic-effect phase-lock note
 
-When using offset mode with a *cyclic* WLED effect (Breathe,
-Pacifica, anything that renders as a direct function of
-`strip.now`), the start-stagger works but every node reaches the
-same point of the cycle simultaneously — the phase difference
-collapses to zero. The fix is in firmware: a persistent per-device
-phase offset on `strip.timebase`, re-asserted after every SYNC.
-
-If you observe this, ensure your node firmware is up to date — the
-phase-lock fix is part of the WLED-usermod release stream. See
-[`../concepts/opcodes.md`](../concepts/opcodes.md) §"Cyclic-effect phase-lock" for
-the deeper background.
+Cyclic WLED effects (Breathe, Pacifica — anything that renders as a
+direct function of `strip.now`) used to collapse to zero phase
+difference in offset mode. Recent WLED-usermod firmware fixes this
+via a persistent per-device phase offset re-asserted after every
+SYNC; if you observe the collapse, your node firmware is too old.
+The full explanation lives in
+[`../concepts/opcodes.md`](../concepts/opcodes.md) §"Cyclic-effect phase-lock".
 
 For the catalogue of which WLED effects are deterministic (and
 therefore safe to use in offset mode) see
-[`docs/effects-deterministic.md`](../concepts/deterministic-effects.md).
+[`../concepts/deterministic-effects.md`](../concepts/deterministic-effects.md).
 
 ## Indicators
 

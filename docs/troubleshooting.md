@@ -82,20 +82,16 @@ overhead are not included.
 
 ### Cyclic effects (Breathe, Pacifica, …) phase-lock across groups
 
-When using offset mode with a *cyclic* effect (one whose render is a
-direct function of `strip.now`, e.g. *Breathe* via
-`sin16_t(strip.now * speed)`), the start-stagger works but every node
-hits the same point of the cycle at the same time — the visual
-phase difference is zero.
-
-The fix is in firmware: a persistent per-device phase offset on
-`strip.timebase` that is re-asserted after every SYNC. With recent
-WLED-usermod firmware, cyclic effects keep their phase difference.
-For older firmware, prefer **state-machine effects**
+A *cyclic* effect (one whose render is a direct function of
+`strip.now`) used to collapse to zero phase difference in offset
+mode. Recent WLED-usermod firmware fixes this via a persistent
+per-device phase offset re-asserted after every SYNC — flash the
+node. For older firmware, prefer state-machine effects
 (*Traffic Light*, *Color Wipe*, *Scan*) when authoring offset scenes.
-→ [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md) §6a;
-[`concepts/opcodes.md`](concepts/opcodes.md) §"Cyclic-effect phase-lock";
-[`concepts/deterministic-effects.md`](concepts/deterministic-effects.md).
+→ [`concepts/opcodes.md`](concepts/opcodes.md) §"Cyclic-effect phase-lock"
+(canonical explanation);
+[`concepts/deterministic-effects.md`](concepts/deterministic-effects.md);
+[`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md) §6a.
 
 ## WebUI
 
