@@ -69,7 +69,6 @@ calls to re-issue. Tokens are derived from state-scope tokens via
 |---|---|---|
 | `groups` | `GROUPS`, `DEVICE_MEMBERSHIP`, `FULL` | `loadGroups()` — refetch group list |
 | `devices` | `DEVICES`, `DEVICE_MEMBERSHIP`, `DEVICE_SPECIALS`, `FULL` | `loadDevices()` — refetch device list |
-| `presets` | `PRESETS` (legacy alias — see note below) | Refresh classical-WLED preset dropdowns |
 | `rl_presets` | `RL_PRESETS` | Refresh RL-preset list + schema; cascade to Specials so the `rl_preset` preset picker refreshes |
 | `wled_presets` | `WLED_PRESETS` | Refresh WLED preset file registry; cascade to Specials so the `wled_preset` dropdown refreshes |
 | `scenes` | `SCENES` | `loadScenes()` — refetch the scenes list |
@@ -90,7 +89,6 @@ suppressing any visible refresh.
 | `DEVICE_MEMBERSHIP` | A device moved to a different group — affects group counts and any list embedded per group. |
 | `DEVICE_SPECIALS` | A special config byte was written on a single device (startblock slot, etc.). No cross-UI effect on RH panels. |
 | `GROUPS` | Groups added / renamed / removed — group-list-backed dropdowns must refresh. |
-| `PRESETS` | Legacy alias — historically covered both classical WLED presets and RL presets. Kept for backwards compatibility; new call sites should pick `WLED_PRESETS` or `RL_PRESETS` directly. Slated for collapse with the §2 terminology rename. |
 | `RL_PRESETS` | RaceLink-native preset CRUD (the 14-field `OPC_CONTROL` parameter snapshots). Triggered by `/api/rl-presets/*` mutating routes. |
 | `WLED_PRESETS` | Classical `presets.json` upload / select / download. Triggered synchronously by `/api/presets/upload` and `/api/presets/select`; for `/api/presets/download` the broadcast fires from inside the task thread once the file lands on disk (workflow success path). |
 | `SCENES` | Scene CRUD — scene list / individual scene record changed. |
