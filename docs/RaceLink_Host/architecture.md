@@ -484,21 +484,272 @@ volatile-switch (no NVS), 800 ms settle, broadcast
 gateway's pre-scan RF config on exit so a mid-scan exception
 doesn't leave the gateway on the wrong channel.
 
-### Cross-network fan-out (Stage 3 Part G)
+### Cross-network fan-out (Stage 3 Part G → BroadcastTarget refactor)
 
-* `GatewayService.send_sync(recv3=FFFFFF, ...)` fans out
-  across every attached transport so each network's devices
-  receive an `OPC_SYNC` tick on their own radio. Unicast
-  syncs route via `transport_for_device`.
-* `ControlService` group-targeted sends
-  (`send_group_preset`, `send_offset(targetGroup=...)`,
-  `send_control(targetGroup=...)`) route via
-  `transport_for_group(group_id)`. Device-targeted sends
-  route via `transport_for_device(addr)`. Single-transport
-  deployments hit the singleton fallback.
-* `scene_runner_service`'s dispatcher is unchanged — it
-  calls into control/sync/stream services and inherits their
-  routing.
+Broadcast routing is governed by an explicit
+[`BroadcastTarget`](https://github.com/PSi86/RaceLink_Host/blob/main/racelink/transport/broadcast_target.py)
+— a frozen tuple of `network_id`s the caller wants the broadcast
+to reach. There is no implicit "current network" or "UI focus"
+fallback: the call site either constructs a target explicitly or
+the helper falls back to a deprecated all-attached default with a
+warning logged for migration.
+
+**Why explicit:** in a multi-network deployment a scene's
+target network set is independent of UI focus (the operator may
+view network A while a scene runs on B). Stage 3 Part G's
+implicit "all attached" sync fan-out caused two real problems:
+
+1. **Performance** — `GatewayService.send_sync` looped sequentially
+   over every attached transport, blocking on each transport's
+   `EV_TX_DONE`. With N gateways the round-trip was ~N × 50 ms;
+   in two-network setups operators saw sync round-trip jump from
+   ~50 ms to ~104 ms.
+2. **Scope leakage** — a scene on network A still tickled
+   network B's `OPC_SYNC`, which could fire any `arm_on_sync`
+   effects pre-loaded on B's devices. Operators saw unrelated
+   triggers fire on the "wrong" network.
+
+The refactor splits scope (what networks to reach) from
+dispatch (how to send in parallel):
+
+* **`BroadcastTarget`** — the explicit scope object. Factories:
+  `BroadcastTarget.from_ids(iterable)` for caller-supplied sets,
+  `BroadcastTarget.single(network_id)` for one-network sends,
+  `BroadcastTarget.all_attached(controller)` for fleet-wide
+  health probes that genuinely want every gateway.
+* **`broadcast_fanout(transports, work_fn, ...)`** — thread-pool
+  helper. Spawns one daemon thread per transport, all kicked off
+  in quick succession (Phase A: dispatch — each USB write lands
+  within ~1 ms of the previous), then joins (Phase B: collect —
+  total wall-clock bounded by the slowest transport's airtime,
+  NOT N × airtime). Worker exceptions are captured per-transport
+  and don't abort siblings.
+* **`resolve_broadcast_transports(controller, target, ...)`** —
+  maps a `BroadcastTarget` to live transports via
+  `transport_for_network`; networks without an attached
+  transport are skipped (with a warning) so a temporarily-
+  disconnected gateway doesn't crash the broadcast.
+
+The threaded fan-out avoids splitting `_send_m2n` into separate
+dispatch/await primitives — the existing `_tx_outcome_cv` /
+`_pending_send_outcome` discipline that guards the RX-reader
+thread is preserved. Two workers on different transports each
+hold their own `_tx_lock` and never serialize on each other.
+Sub-second LoRa airtime is the dominant wall-clock cost; the
+~10 µs Thread.start() overhead per worker is negligible.
+
+**Service-layer surface:**
+
+| Method | Default scope (`target=None`) | Explicit `target=BroadcastTarget(...)` |
+|---|---|---|
+| `GatewayService.send_sync` (broadcast) | All attached transports + deprecation warning | Threaded fan-out across listed networks |
+| `GatewayService.send_sync` (unicast) | Routed via `transport_for_device(recv3)` — `target` ignored | (same) |
+| `ControlService.send_group_preset` | Routed via `transport_for_group(group_id)` — single transport | Threaded fan-out across listed networks |
+| `ControlService.send_offset(targetGroup=...)` | Same group-routed single transport | Same threaded fan-out |
+| `ControlService.send_control(targetGroup=...)` | Same group-routed single transport | Same threaded fan-out |
+| Device-targeted sends | `transport_for_device(addr)` — `target` ignored | (same) |
+
+**Scene-driven scope computation:**
+
+`SceneRunnerService.run()` calls
+[`scene_network_ids(scene, controller)`](https://github.com/PSi86/RaceLink_Host/blob/main/racelink/services/scene_network_scope.py)
+at the start of every scene. The helper walks every action's
+canonical `target` field and aggregates the set of networks the
+scene touches:
+
+* `target.kind == "broadcast"` → every persisted network
+  (group 255 is fleet-wide by design).
+* `target.kind == "groups"` → resolve each gid →
+  `group.network_id`.
+* `target.kind == "device"` → resolve mac →
+  `device.network_id`.
+* Actions without a target (`sync`, `delay`) contribute
+  nothing — they inherit the union from the rest of the scene.
+* `offset_group` containers descend into children.
+
+The aggregated set is held on the runner for the duration of the
+run (`_current_sync_target`) and passed to every `sync`-action
+dispatch. This means:
+
+* A scene that targets only group A on network 1 fires its
+  `sync` only on network 1's gateway — network 2 (uninvolved)
+  sees no traffic.
+* A scene with `target.kind == "broadcast"` (group 255) targets
+  every network, exactly as before.
+* A sync-only scene (no resolvable scope) falls back to
+  all-attached with the deprecation warning — the
+  conservative default that preserves pre-refactor behaviour.
+
+**Operator-pinned override: `scene.network_scope`**
+
+The scene-derived scope still has a gap: a scene with ONLY
+`broadcast`-target actions auto-resolves to "every persisted
+network" — the operator has no way to constrain that to a subset
+without picking specific groups. The `network_scope` field on
+each scene closes the gap:
+
+```json
+"network_scope": {"mode": "auto"}                                         // default
+"network_scope": {"mode": "explicit", "network_ids": ["net-a", "net-b"]}
+```
+
+* **Auto** → `scene_network_ids` walks actions as described above.
+* **Explicit** → `scene_network_ids` returns the persisted list
+  filtered against the network repository (stale ids silently
+  dropped at runtime with an INFO log). The operator sets this
+  via the **Scope** chip in the scene editor header — a dialog
+  with an Auto/Explicit radio + multi-select checkbox.
+
+When explicit, two extra invariants kick in:
+
+1. **Per-action target filter cascade** — the editor's
+   `SceneTargetPicker` and `MultiGroupPickerDialog` receive the
+   scope as a prop and restrict their group/device dropdowns to
+   in-scope networks. Group id 0 (Unconfigured) always passes
+   regardless — same exception the boundary validator makes.
+2. **Save-time cross-validator** —
+   [`validate_scene_scope_consistency`](https://github.com/PSi86/RaceLink_Host/blob/main/racelink/domain/network_boundary.py)
+   runs at the web layer after `scenes_service` canonicalizes
+   the payload. Two failure shapes (both `SceneScopeViolation`,
+   HTTP 400):
+   - `unknown_network_id` — scope references a network that
+     isn't in the network repository.
+   - `scope_violation` — an action's resolved target lies on a
+     network not in the scope. Detail carries
+     `offending_action_index` so the editor scrolls + highlights
+     the offending row.
+
+   The check lives at the web layer (not in `scenes_service`)
+   because it needs the device + group repositories;
+   `scenes_service` deliberately stays repository-free.
+
+**Runtime degradation when scope resolves empty**
+
+A persisted explicit scope can resolve to `()` at runtime — every
+listed network was deleted from the repository. The runner
+guards against silently widening back to "all attached" via a
+dedicated `_broadcast_is_explicit_empty` flag:
+
+* Auto mode + empty scope → SYNC falls back to all-attached
+  (deprecated path, still active for pre-feature back-compat).
+* Explicit mode + empty scope → broadcasts are SKIPPED at the
+  dispatch site. The action is recorded as a degraded run with
+  `error="scope_resolved_empty"`. This is the operator-resolved
+  choice: silent widening would defeat the whole point of
+  pinning the scope.
+
+**Cost estimator integration**
+
+`/api/scenes/<key>/estimate` (and the draft variant) now return
+two extra fields:
+
+* `resolved_network_ids` — the same list `scene_network_ids`
+  returns at runtime; powers the editor's "Fan-out: N gateways"
+  pill.
+* `network_scope_mode` — `"auto" | "explicit"`, mirrors the
+  scene field; lets the editor pick the right chip variant.
+
+The per-action `packets` / `bytes` / `airtime_ms` figures
+deliberately do NOT multiply by fan-out width. The dominant
+operator cost is LoRa airtime, and broadcast workers run in
+parallel — wall-clock airtime is bounded by the slowest single
+radio, not summed. The fan-out pill is the operator-visible
+indicator that N gateways are involved.
+
+**What's intentionally NOT in this iteration:**
+
+* **No per-action override** — a scene cannot today say "this
+  particular sync fires only on network B even though the scene
+  touches A+B+C". The scene-wide scope (auto-resolved or
+  explicit) governs every broadcast in the scene.
+* **No operator-driven manual SYNC button** — the UI doesn't
+  currently expose a "fire SYNC now on networks [X, Y]"
+  control. By design: broadcasts are scene-driven, not a direct
+  operator action.
+* **Back-compat fallback still active** — auto mode with empty
+  scope falls back to all-attached with a warning. After
+  every caller has migrated the fallback should upgrade to
+  `ValueError` so callers can't accidentally ship a broadcast
+  without explicit scope.
+
+### Per-group network migration
+
+Stage 4 follow-up. `migrate_network_to` already pushes a whole
+network onto a new RF config; this complementary API moves one or
+more groups (with all their members) from one existing network onto
+another existing network. Network membership is a per-group
+property (one network per group), so the operator-facing API and
+the WebUI both operate exclusively at group granularity — per-device
+migration is an internal helper, not a public surface. Key
+differences from `migrate_network_to`:
+
+* No gateway-RF switch. Both source + target gateways stay on their
+  persisted RF configs; only the devices' physical RF settings
+  (and their `network_id` metadata) flip.
+* Source transport is the device's CURRENT network's gateway —
+  `set_node_rf_config` reaches the device BEFORE it reboots onto
+  the target config. The default `transport_for_device(mac)`
+  resolution in
+  [`GatewayService.set_node_rf_config`](https://github.com/PSi86/RaceLink_Host/blob/main/racelink/services/gateway_service.py)
+  handles this automatically.
+* Per-device metadata flip (`network_id` +
+  `last_known_rf_config`) happens INSIDE the state-repository
+  lock — same discipline `_apply_device_meta_updates` uses for
+  group changes.
+
+**Service surface**:
+
+| Method | Visibility | Notes |
+|---|---|---|
+| [`RfMigrationService.migrate_groups_to(target_network_id, group_ids, offline_mode)`](https://github.com/PSi86/RaceLink_Host/blob/main/racelink/services/rf_migration_service.py) | Public; route handler entry | Validates + deduplicates `group_ids`, fails fast on any unknown id, then runs one combined migration over the unioned member set. Flips `group.network_id` on every resolved group regardless of partial member failure. |
+| `RfMigrationService.migrate_devices_to(target_network_id, macs, offline_mode)` | Internal helper | Called by `migrate_groups_to` with the unioned, deduplicated member mac list. Not exposed as a route — devices always travel with their group. |
+
+**API**:
+
+| Route | Body | Behaviour |
+|---|---|---|
+| `POST /api/groups/migrate-network` | `{group_ids: [int], target_network_id, offline_mode}` | Single TaskManager job for one OR many groups (single-group migration = a one-element list). Rejects HTTP 400 with `detail.code = "offline_block"` when `block` mode finds offline members across the union of all requested groups. Unknown `group_ids` fail fast before any mutation; empty `group_ids` list is HTTP 400; empty membership for a known group is allowed (the flip still happens so the operator can pre-stage). |
+
+**Offline modes** (parallels the group-move pattern in
+`_apply_device_meta_updates`):
+
+* `block` (default) — pre-check rejects with HTTP 400 +
+  `detail.offline_macs` if any device is offline. The WebUI dialog
+  then offers the two fallbacks below.
+* `skip` — metadata-only flip for offline devices; no wire push.
+  Channel-Scan workflow recovers them later. Online devices get
+  the wire push as normal.
+* `force` — attempts the wire push even for offline devices;
+  metadata flips regardless. Failed pushes land in
+  `result["stranded"]` — same recovery path as `skip`.
+
+**Why metadata flips for offline devices** (operator question
+during design): mirroring the existing group-move auto-restore
+pattern (`_restore_known_device_group`). The host's view of
+"which network this device belongs to" reflects operator INTENT;
+the wire reconciliation catches up later. Stranded devices surface
+in Channel Scan with their now-known-good `last_known_rf_config`,
+so operator recovery is a one-click reassign.
+
+**Group flip atomicity**: `group.network_id` updates after every
+per-device migration attempt has finished, regardless of partial
+failure. The operator's intent is "this group is now on network B" —
+stranded members aren't a reason to roll back the group itself
+(they'd then have a `network_id` of B but a group of A, which is
+a worse boundary violation than the simpler "operator-intent
+metadata + Channel Scan recovery" shape). The same atomicity holds
+across a multi-group submission: each resolved group flips, even if
+individual members across the union failed.
+
+**Why group-granular only** (per-device migration was deleted
+during this consolidation): network membership is a per-group
+property in the data model. Letting an individual device migrate
+while its group stayed on the source network would immediately
+create a cross-network-membership state — the very boundary
+violation `validate_group_membership` rejects elsewhere. Operating
+exclusively at group granularity keeps the rule consistent
+end-to-end without a separate "device drifted off its group's
+network" recovery path.
 
 ### Network-boundary enforcement (Stage 3 Part B)
 

@@ -109,6 +109,53 @@ groupId back to the network. This is the recovery action when
 nodes have been reflashed or moved between gateways and their
 in-radio state has drifted from the host's view of them.
 
+#### Move groups to a different network
+
+When you run multiple gateways and one or more groups ended up on
+the wrong network, open the **Manage groups** dialog from the
+sidebar toolbar (the ↕ button next to **+** above the groups
+list). The dialog combines drag-reorder with multi-group
+network migration so the operator never juggles two windows for
+related housekeeping.
+
+Network membership lives at the group level (one network per
+group), so the move is always group-granular — individual
+devices are never moved across networks on their own; they
+follow their group. Static groups (`Unconfigured`, `All WLED
+Nodes`) are network-agnostic by design and are not selectable
+for moves.
+
+To move one or more groups:
+
+* In the **Manage groups** dialog, tick the checkbox on the
+  groups you want to move (the row's current network badge is
+  shown on the right so you can verify before acting).
+* Pick a **Target** network from the dropdown.
+* Click **Move N selected**.
+
+The dialog uses *block* mode by default — if any member device
+in the move set is offline, the server refuses with a clear
+message and reveals two fallback buttons:
+
+* **Skip offline** — migrate the online devices' RF config + flip
+  metadata; offline devices have their network membership flipped
+  in memory only. The next Channel Scan recovers them physically.
+* **Force offline** — same as skip but additionally attempts the
+  wire push for offline devices (usually times out — the device
+  isn't reachable). Used as a last resort.
+
+In both fallback modes every device's `network_id` flips
+immediately so the host's view matches operator intent — the
+same pattern the existing **Move selected to group** uses for
+offline devices. The group's own `network_id` flips together
+with its members, even if individual wire pushes failed; failed
+members surface in Channel Scan with their now-known-good
+`last_known_rf_config` for a one-click reassign.
+
+The dialog stays open after a successful move so you can pick
+the next batch without re-opening — handy when reorganising
+several groups across networks in one sitting.
+
 ### 4. Configure devices (optional)
 
 The **Specials** column in the device table is a button you click
@@ -431,6 +478,58 @@ A `degraded` outcome (e.g. an action targets a device the host
 doesn't know) does **not** trigger the abort — degraded means
 "ran with caveats", not "didn't run". Only outright `ok=False`
 terminates.
+
+#### Scene scope on multi-network setups
+
+When you have multiple gateways attached, every scene carries a
+**Scope** chip in the editor header (next to "Stop on first
+error"). Click it to choose between **Auto** and **Explicit**:
+
+* **Auto** (default) — the host computes the scope from the
+  scene's other action targets at runtime. The chip shows what
+  Auto currently resolves to (e.g. *"Auto · TrackA + TrackB"*).
+  The displayed preview updates live as you edit actions.
+* **Explicit** — pin the scope to a specific set of networks via
+  the dialog's checkbox list. The chip then shows the pinned
+  names (e.g. *"Explicit: TrackA"*). Per-action target pickers
+  immediately filter their group/device dropdowns to in-scope
+  networks only — out-of-scope choices disappear.
+
+**When to use Explicit:**
+
+* A "fleet trigger" scene that should only fire on one race's
+  network even though devices on neighbouring networks exist.
+* A `broadcast`-target action (group 255) that you want to scope
+  to a subset of networks instead of letting it reach the whole
+  fleet (Auto sends a `broadcast` target to all persisted networks).
+* Anti-mistake: if your scene already targets a single network's
+  groups, Explicit-pin it so a future edit that adds an action
+  for another network can't silently expand the scope.
+
+**What happens if you switch from Auto to a smaller Explicit
+scope and existing actions now target out-of-scope devices?** The
+editor flags those rows with an *"out of scope"* warning chip and
+a red border on the target picker. Save is allowed to attempt —
+the server returns HTTP 400 with the offending action's row
+highlighted; either widen the scope or fix the action.
+
+**What happens if you delete a network that a scene's Explicit
+scope still references?** The sidebar shows a small amber dot
+next to that scene's name. Opening it surfaces the stale id with
+a remove-X. The runtime soft-filters the missing id; if all ids
+in the scope were stale, the scene's broadcasts are recorded as
+degraded (`error="scope_resolved_empty"`) rather than silently
+widening back to "every gateway".
+
+**Fan-out indicator.** When a scene's broadcasts will hit 2+
+gateways (Auto or Explicit), a small green *"Fan-out: 2
+gateways"* pill appears under the header. Hover for the network
+names. The LoRa airtime cost stays the same as a single-network
+broadcast — workers run in parallel, so wall-clock airtime is
+bounded by the slowest single radio.
+
+For the wire-format details + degradation rules table see
+[`multi-network.md` §"Scene broadcast scope"](multi-network.md#scene-broadcast-scope).
 
 **Measured run-time alongside estimates.** After a successful
 run, the cost badges (per-action and the scene-total in the

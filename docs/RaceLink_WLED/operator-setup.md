@@ -56,7 +56,7 @@ for the investigation that motivated this enforcement).
 | WLED setting | RaceLink default | Reason for enforcement |
 |---|---|---|
 | Target refresh rate (`hw.led.fps`) | **75 fps** | V3 (ESP32-S2) and V4 (ESP32-S3) both reach 75 fps comfortably. Pinning prevents per-platform free-running rates (V3≈240 fps vs V4≈124 fps when uncapped) that cause `mode_strobe`'s cycle period to differ across platforms — the canonical V3↔V4 Strobe-drift trigger. |
-| Automatic Brightness Limiter (`hw.led.maxpwr`) | **0 mA (disabled)** | RaceLink fleets typically run ~9 LEDs per device. ABL does no useful work at that scale, but per-device variations in the ABL budget cause visible intensity divergence on bright frames. |
+| Automatic Brightness Limiter (`hw.led.maxpwr`) | **0 mA (disabled)** | ABL caps the per-frame current draw by globally scaling brightness down whenever the rendered frame would exceed the configured budget. Per-device variations in that budget (PSU headroom, cable losses, ABL setting) cause visible intensity divergence on bright frames across the fleet. Enable ABL deliberately on individual nodes that need it — typically nodes driving more than ~120 LEDs, where strip current draw on full-white frames can exceed the PSU or wiring rating. |
 | Gamma correction for color (`light.gc.col`) | **on** | Per-device on/off mismatches produce visibly different fade curves and perceived effect intensity. |
 | Gamma correction for brightness (`light.gc.bri`) | **off** | Matches WLED's own default. |
 | Gamma value (`light.gc.val`) | **2.2** | WLED's standard, visually correct on WS2812-class strips. |

@@ -14,20 +14,24 @@ see [`concepts/channels.md`](../concepts/channels.md).
 
 ## When you'd reach for this
 
-* **Two parallel races, one host.** Each gateway carries its own
-  set of devices on a non-overlapping channel; scenes and group
-  ops fan out per-network without crossing.
-* **Hardware swap.** A failed gateway is replaced with an
-  identical one; the new ident_mac re-binds to the existing
-  network and you keep the device pairings, group ids, and
-  scene history.
-* **Channel change.** A frequency planning audit moves the
-  whole network to a different channel slot; the migration
-  engine pushes the new config to every device first, then
-  switches the gateway last.
-* **Recover stranded devices.** A botched migration left some
-  nodes on an old channel. Channel Scan sweeps the region and
-  reports who's listening on which slot.
+A second gateway buys you two things, both of them direct
+consequences of running a second LoRa radio in parallel:
+
+* **More bandwidth.** Each gateway transmits independently on
+  its own channel, so two gateways roughly double the airtime
+  budget for fleet-wide operations. A scene that broadcasts to
+  both halves of the deployment runs in the airtime of one
+  radio, not the sum.
+* **Parallel communication with different parts of the setup.**
+  The host can drive one part of the deployment at the same
+  time as another, rather than serialising every packet through
+  a single channel.
+
+The rest of this guide walks the operational flows that come
+with running more than one gateway: creating networks, the bind
+wizard, RF migration after a channel change, hardware-swap
+recovery, the per-network reconnect banner, and Channel Scan
+for stranded devices.
 
 ## Concept refresher
 
@@ -63,7 +67,7 @@ After a successful boot with two gateways attached:
   see no UX change. "All Networks" is the default.
 * The **Device Table** gains a "Network" column with a
   coloured badge per row (deterministic palette by network id;
-  "Track A" is always the same colour across reloads).
+  a given network keeps the same colour across reloads).
 * **Hover the badge** for the device's last-known `freq_hz` /
   SF / BW / SyncWord — a quick read of "is this node where the
   network expects it to be".
@@ -83,7 +87,7 @@ The flow for creating a fresh network starts from the
    on.
 3. Pick **"Create a new network for this gateway"**. The form
    inline:
-     * **Name** — free-text label ("Pit-Lane", "Track A", …).
+     * **Name** — free-text label ("Pit-Lane", "Default", …).
      * **Region** — `EU868` / `US915` / whatever the host's
        channel table carries.
 4. The network is created with `rf_config` seeded from the
@@ -331,6 +335,164 @@ boundary violations it detects:
 * `group_network_mismatch` — the devices agree on a network,
   but the target group is somewhere else. Migrate the devices
   to the target network first, then re-run the regroup.
+
+## Scene broadcast scope
+
+A scene's broadcast actions (`sync`, plus PRESET / CONTROL /
+OFFSET with `target.kind == "broadcast"`) need to know **which
+networks** to reach. Each scene carries a `network_scope` field
+with two modes:
+
+### Auto mode (default)
+
+The host derives the scope from the scene's action targets at
+runtime. Every non-sync action contributes its target's resolved
+network(s) to a union:
+
+| Action target | Contributes |
+|---|---|
+| `groups: [1, 2]` (each group on net-A) | net-A |
+| `device: AABBCC112233` (on net-B) | net-B |
+| `broadcast` (group 255) | every persisted network |
+| `sync` / `delay` (no target) | nothing |
+
+The union becomes the scene-wide broadcast scope. Sub-actions
+inside `offset_group` containers descend recursively.
+
+**Operator-visible consequence:** a scene that only touches
+net-A no longer sends sync ticks to net-B's gateway — uninvolved
+networks can't accidentally fire pre-loaded `arm_on_sync` effects.
+
+### Explicit mode
+
+The operator pins a specific set of network ids via the **Scope**
+chip in the scene editor header (a dialog with an Auto/Explicit
+radio + multi-select checkbox of networks). When explicit:
+
+* The scene's runtime scope is the persisted list, soft-filtered
+  against currently-attached networks (deleted networks drop out).
+* The per-action target pickers in the editor restrict their
+  group/device dropdowns to in-scope networks only. Out-of-scope
+  choices are hidden.
+* The `MultiGroupPickerDialog` keeps its single-network anchor
+  rule per action but the visible groups are pre-filtered by
+  the scene-wide scope first.
+* Save-time validation rejects an action that targets a network
+  outside the scope with `HTTP 400 {code: "scope_violation",
+  offending_action_index: N}` — the editor highlights the
+  offending row.
+
+### Persisted shape
+
+```json
+"network_scope": {"mode": "auto"}
+"network_scope": {"mode": "explicit", "network_ids": ["net-a", "net-b"]}
+```
+
+Scenes saved before this feature (no `network_scope` field) load
+as `{"mode": "auto"}` — no migration required.
+
+### Degradation rules (operator-visible)
+
+| Condition | Outcome |
+|---|---|
+| Auto-mode, sync-only scene (no resolvable scope) | Falls back to "every attached gateway" with a deprecation log |
+| Explicit-mode, one of the listed networks is deleted | The id is silently dropped from the runtime scope; sidebar shows an amber dot until the operator reconciles |
+| Explicit-mode, every listed network is deleted | Scope resolves empty; broadcasts are NOT fanned out (no silent widening back to "all attached"). Run records `error="scope_resolved_empty"` and marks the action degraded |
+| Explicit-mode + action target outside scope at save | Rejected with HTTP 400 — operator must fix the action or widen the scope before saving |
+
+### Limits today
+
+* **No per-action override** — a scene can't say "this particular
+  sync fires only on network B even though the scene targets
+  A+B". The scene-wide scope governs every broadcast in the scene.
+* **No manual SYNC button** — broadcasts are scene-driven; the
+  operator triggers them by running a scene.
+* **No cost estimator multiplier** — the LoRa airtime estimate
+  reflects single-network cost. A separate "Fan-out: N gateways"
+  pill in the editor surfaces when a scene reaches 2+ networks
+  (each gateway transmits in parallel, so wall-clock airtime is
+  bounded by the slowest single-radio, not summed).
+
+For deeper background see
+[`architecture.md` §"Cross-network fan-out"](architecture.md#cross-network-fan-out-stage-3-part-g--broadcasttarget-refactor).
+
+## Move groups between networks
+
+A group ends up on the wrong network — either by an initial
+mis-bind or because the operator wants to reorganise which group
+belongs to which network. Since network membership lives at the
+group level
+(one network per group), the move is always group-granular: every
+member device follows its group. The WebUI exposes a single entry
+point — the sidebar's **Manage groups** dialog — which combines
+drag-reorder with multi-group network migration in one panel.
+
+### Where to start a move
+
+Open the **Manage groups** dialog from the sidebar toolbar (the ↕
+button next to **+** above the groups list). The dialog lists every
+group with its current network badge on the right and a checkbox on
+the left. Tick one or more rows, pick a **Target** network, click
+**Move N selected**.
+
+Static groups (`Unconfigured`, group `0`, plus `All WLED Nodes`) are
+network-agnostic by design — their checkbox is disabled.
+
+The move uses one RF migration path under the hood — push
+`OPC_RF_CONFIG` with the target network's settings, then flip the
+member's persisted `network_id` plus the group's own `network_id`
+atomically.
+
+### Offline behaviour modes
+
+Default **Move** uses `offline_mode=block`: if any member device in
+the move set is offline the server refuses with HTTP 400 and the
+dialog reveals two fallback buttons:
+
+* **Skip offline** — migrate the online devices' RF config + flip
+  metadata. Offline devices have their `network_id` flipped in
+  memory + persistence only; the wire push is skipped entirely.
+  Channel Scan recovers the physical device when it comes back into
+  range. This is the same offline-handling shape the existing
+  group-move (devices/update-meta) uses.
+* **Force offline** — try the wire push for offline devices too.
+  Likely to time out (the device isn't actually reachable), but the
+  metadata still flips. Same end-state as Skip for the offline
+  devices, just with extra wall-clock spent waiting for ACKs.
+
+The metadata flip happens regardless of wire outcome — operator
+intent is "this group now belongs to network B", and the runtime
+soft-filter (`scene_network_ids`) plus Channel Scan recovery handle
+the physical reconciliation cleanly.
+
+### Group flip atomicity
+
+`group.network_id` flips together with every member's
+`device.network_id`. If a member fails the wire push (offline /
+time-out), the group still flips — the operator's intent governs.
+The failed member's metadata also flips (it now reads "network B")
+so the WebUI doesn't show a stale cross-network membership. Channel
+Scan recovers the physical device.
+
+The same atomicity holds across a multi-group move: if you tick
+three groups and only one member device fails to reach the wire,
+all three groups still flip — the failed device lands in the
+stranded list with its now-known-good `last_known_rf_config`, ready
+for Channel-Scan recovery.
+
+### What happens to scenes that referenced the moved devices
+
+* **Auto-scope scenes**: re-resolve on next run via
+  `scene_network_ids` — the new network shows up automatically in
+  the scope.
+* **Explicit-scope scenes**: if the scene's explicit `network_scope`
+  no longer covers the target network, the moved device's
+  group/device action becomes "out of scope" — the editor shows
+  the warning chip and the server rejects re-save.
+
+For the wire-level details + service-layer trace see
+[`architecture.md` §"Per-group network migration"](architecture.md#per-group-network-migration).
 
 ## Single-gateway operators
 

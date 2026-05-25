@@ -10,6 +10,236 @@ file.
 > When the cross-repo summary and a repository's release notes
 > disagree, the repository's release notes win.
 
+## Unreleased — BroadcastTarget + scene-derived sync scope
+
+Stage 3 Part G's broadcast fan-out had two operator-observable
+problems on multi-gateway setups: (1) `OPC_SYNC` round-trip
+scaled linearly with attached-gateway count because the host
+sent to each transport sequentially and blocked on each
+`EV_TX_DONE` before starting the next, and (2) a scene targeting
+only network A still triggered `OPC_SYNC` on network B,
+potentially firing pre-loaded `arm_on_sync` effects there.
+
+* **RaceLink_Host** (branch `broadcast-target`) — 1064 pytest pass
+  (+40 vs `ui-new-features` baseline), no wire-protocol or
+  schema changes.
+* **Wire protocol** — unchanged (`PROTO_VER_MAJOR/MINOR` stable).
+* **Frontend** — no UI changes; scope is computed automatically
+  from scene contents.
+
+### Operator-visible behaviour changes
+
+* **SYNC fires only on involved networks.** A scene whose
+  non-sync actions resolve to a strict subset of networks
+  (e.g. target group on network A only) has its `sync` action
+  scoped to that subset. Uninvolved networks see no SYNC traffic
+  and cannot accidentally fire pre-loaded `arm_on_sync` effects.
+* **Multi-gateway SYNC is fast again.** Two-gateway setups
+  measured ~104 ms `OPC_SYNC` USB round-trip on Stage 3 Part G;
+  the threaded fan-out brings it back to ~52 ms, bounded by the
+  slowest gateway's air time rather than the sum. Three or more
+  gateways scale the same way.
+* **Sync-only scenes fall back to all-attached.** Scenes that
+  contain only `sync`/`delay` actions can't derive a scope —
+  they keep the conservative pre-refactor "fire on every
+  attached gateway" behaviour (with a deprecation warning logged
+  for migration).
+
+### Developer-visible changes
+
+* **`BroadcastTarget`** (new module
+  `racelink/transport/broadcast_target.py`) is the explicit
+  scope object for multi-network broadcasts. Factories:
+  `from_ids(iterable)`, `single(network_id)`,
+  `all_attached(controller)`.
+* **`broadcast_fanout`** (new module
+  `racelink/transport/broadcast_fanout.py`) is the threaded
+  worker-pool helper. One daemon thread per transport,
+  joined-with-timeout. Worker exceptions are captured
+  per-transport.
+* **`scene_network_ids(scene, controller)`** (new module
+  `racelink/services/scene_network_scope.py`) walks scene
+  action targets and aggregates the set of networks the scene
+  touches. Used by `SceneRunnerService.run()` to scope `sync`
+  actions.
+* **Service signatures** — `GatewayService.send_sync`,
+  `SyncService.send_sync`, `ControlService.send_group_preset`,
+  `ControlService.send_offset`, `ControlService.send_control`
+  all accept a `target: BroadcastTarget | None = None` kwarg.
+  Default (`None`) preserves pre-refactor routing; explicit
+  `target` enables cross-network fan-out for callers that need
+  it.
+
+### Limits left for follow-up
+
+* **No per-action scope override** — a scene cannot today say
+  "this particular sync fires only on network B even though the
+  scene targets A+B". A future PR could add an optional
+  `broadcast_target` field to action records + scene-editor UI.
+* **Back-compat default still active** — `target=None` defaults
+  to all-attached with a warning. After every caller has been
+  migrated the fallback should upgrade to `ValueError` so callers
+  can't accidentally ship a broadcast without explicit scope.
+
+### Follow-up: operator-pinned `scene.network_scope` + UI
+
+Same branch, second iteration. Closes the gap where a scene with
+only `broadcast`-target actions auto-resolved to "every persisted
+network" — operators had no UI knob to constrain that.
+
+* **RaceLink_Host** — 1103 pytest pass, 61 vitest, vue-tsc clean.
+* **Scenes file format** — new optional top-level field
+  `network_scope` (no `SCHEMA_VERSION` bump). Existing scenes
+  load as `{"mode": "auto"}`.
+* **Wire protocol** — unchanged.
+
+#### Operator-visible behaviour changes
+
+* **Scope chip in the scene editor header.** Click to open a
+  dialog with Auto / Explicit radio + checkbox list of networks.
+  Auto-mode chip shows the live server-resolved scope preview
+  ("Auto · TrackA + TrackB"). Explicit mode pins a specific set.
+* **Per-action target filter cascade.** When the scope is
+  explicit, the action's group / device dropdown filters to
+  in-scope networks only. Out-of-scope choices disappear from
+  the editor.
+* **Out-of-scope warning chip.** If you switch to a smaller
+  Explicit scope and an existing action targets a network now
+  outside the scope, the row gets an *"out of scope"* warning
+  + red border on the target picker. Saving in that state is
+  rejected with HTTP 400.
+* **Sidebar scope badge.** Scenes with Explicit scope show a
+  small "N nets" badge next to the label; an amber dot appears
+  when one of the scope's networks no longer exists.
+* **Fan-out pill in the editor.** When the scene's broadcasts
+  reach 2+ gateways, a green *"Fan-out: 2 gateways"* pill
+  surfaces above the action list. The cost-estimator's airtime
+  figure stays single-network (parallel airtime; wall-clock is
+  bounded by the slowest radio, not summed).
+* **Runner completeness — broadcast PRESET / CONTROL / OFFSET
+  fan-out fixed.** The previous iteration only threaded the
+  scene scope into SYNC; broadcast PRESET / CONTROL / OFFSET
+  ops with `target_group == 255` failed routing at N≥2
+  gateways. The runner now passes scope to every broadcast
+  opcode via `_target_for_op`.
+
+#### Developer-visible changes
+
+* **`scenes_service._canonical_network_scope`** validates the
+  field shape (no schema bump).
+* **`scene_network_ids`** honours explicit scope (operator
+  override wins over the action walk).
+* **`validate_scene_scope_consistency`** in
+  `domain/network_boundary.py` runs at the web layer and raises
+  `SceneScopeViolation` on `unknown_network_id` /
+  `scope_violation`. The web layer rolls back the partially-
+  applied scene on rejection.
+* **`/api/scenes/<key>/estimate`** now returns
+  `resolved_network_ids` + `network_scope_mode`.
+* **Empty-explicit safety guard** —
+  `SceneRunnerService._broadcast_is_explicit_empty` blocks the
+  SYNC fallback to all-attached when an explicit scope resolves
+  to zero live networks. The action is recorded as degraded
+  (`error="scope_resolved_empty"`) instead of silently widening.
+* **`send_wled_preset` forwards `target=`** — closes the prior
+  branch's gap where `target` was stripped before reaching
+  `send_group_preset`.
+
+## Unreleased — Per-group network migration + unified Manage-groups dialog
+
+Closes a real UX gap: a group ended up on the wrong network and
+the operator had no UI path to fix it. The bulk-regroup endpoint
+actively REFUSED cross-network moves; the only recovery was
+NVS-reset + complete re-discovery. This release adds a dedicated
+group-granular migration path that mirrors the existing
+group-move pattern (sofortiges Metadata-Update + Wire-Push pro
+Online-Device + Auto-Restore via Channel Scan), and consolidates
+the WebUI surface into a single **Manage groups** dialog that
+combines drag-reorder with multi-group network migration.
+
+Network membership lives at the group level (one network per
+group), so the operator-facing API is group-granular by design —
+per-device migration is an internal helper, not a public surface,
+and the WebUI never offers it as an action.
+
+* **RaceLink_Host** — 1134 pytest pass, 61 vitest, vue-tsc clean.
+* **Wire protocol** — unchanged.
+* **Frontend** — one dialog (`ManageGroupsDialog`), one entry
+  point (the sidebar's ↕ button).
+
+### Operator-visible behaviour changes
+
+* **Manage groups dialog** (sidebar ↕ button, formerly "Reorder
+  groups") now bundles drag-reorder with multi-group network
+  migration. Pick the rows to move via checkboxes, choose a
+  Target network, click **Move N selected**. Reorder + move are
+  independent Apply buttons — operator can do either, both, or
+  several moves in a row without closing the dialog.
+* **Network badge** moved out of the DeviceTable column (now
+  removed) into (a) the sidebar group rows themselves and (b)
+  the header band above the device table for the currently
+  selected group. Read-only in both places.
+* **Static groups** (`Unconfigured`, `All WLED Nodes`) are
+  network-agnostic by design and have no badge / are not
+  selectable for moves.
+* **Offline-mode dialog flow**: default **Move** uses *block* —
+  refuses if any device is offline and reveals **Skip offline** /
+  **Force offline** buttons. Skip flips metadata only for offline
+  devices (Channel Scan recovers physically); Force attempts the
+  wire push anyway (usually times out, same end-state as Skip for
+  offline devices).
+
+### Developer-visible changes
+
+* New service method on `RfMigrationService`:
+  `migrate_groups_to(target_network_id, group_ids, offline_mode)`.
+  Takes a list (single-group migration = one-element list).
+  Validates + deduplicates group ids, fails fast on any unknown
+  id, unions the member set, runs one combined migration, flips
+  every resolved group's `network_id` even on partial failure.
+* `migrate_devices_to(target_network_id, macs, offline_mode)`
+  remains as an internal helper — called only by
+  `migrate_groups_to`, never wired to a route.
+* New endpoint: `POST /api/groups/migrate-network` with body
+  `{group_ids: [int], target_network_id, offline_mode}`. Runs
+  inside TaskManager (long-running), returns task handle
+  immediately; live progress flows over SSE `task` channel.
+* The earlier `POST /api/devices/migrate-network` and
+  `POST /api/groups/<group_id>/migrate-network` routes are GONE
+  (consolidated into the bulk endpoint above).
+* `_state_lock()` helper on `RfMigrationService` mirrors the
+  `GatewayService._state_lock` pattern — metadata flips happen
+  inside the state-repository lock; wire pushes happen lock-free.
+* `ResortGroupsDialog.vue` + `NetworkMoveDialog.vue` deleted;
+  replaced by `ManageGroupsDialog.vue`. UI-bus signal renamed
+  `resortGroupsRequest` → `manageGroupsRequest`. Store helper
+  renamed `setGroupNetwork(id, …)` → `setGroupsNetwork(ids[], …)`.
+
+### Design notes worth recording
+
+* **Group-granular only**: network membership is per-group in
+  the data model. Letting an individual device migrate while its
+  group stayed on the source network would create the very
+  cross-network-membership state `validate_group_membership`
+  rejects elsewhere. Operating exclusively at group granularity
+  keeps the rule consistent end-to-end.
+* **Metadata vs wire flip**: matches the existing
+  `_apply_device_meta_updates` group-move pattern. Host metadata
+  reflects operator intent immediately; Channel Scan is the
+  reconciliation path. Same mental model for both moves.
+* **Group flip atomicity** (single + multi): every resolved
+  group's `network_id` flips regardless of partial member-
+  migration failure. The alternative (only flip if every member
+  succeeded) would leave the group in a worse
+  cross-network-membership state when ANY device times out.
+* **Multi-group rationale**: when reorganising a deployment, the
+  operator often moves several groups together. Doing it in one
+  TaskManager job means one block-mode rejection covers the
+  whole set, one progress stream, one set of side-effects — and
+  the dialog can stay open across multiple moves.
+* **No SCHEMA bump**: device + group records gained no new fields;
+  `network_id` was already on both since Stage 2.
+
 ## 2026-05-22 — Multi-network reconnect hardening + UX polish
 
 Stage 5 (2026-05-21) shipped the end-to-end multi-USB-gateway plan;
