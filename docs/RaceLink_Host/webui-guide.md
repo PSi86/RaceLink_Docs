@@ -286,12 +286,12 @@ can take 5–10 seconds.
 
 ## Preset libraries — RL Presets and WLED Presets
 
-Two distinct dialogs manage two distinct preset concepts. Don't
-confuse them: **RL Presets** are RaceLink's own deterministic-effect
-library, referenced by name from scene actions; **WLED Presets**
-are WLED's own preset slots stored on each device's flash, addressed
-by index (1, 2, 3, …). They live at different layers of the system
-and are edited through different dialogs.
+Two distinct dialogs manage the two preset concepts defined in
+[`glossary.md`](../glossary.md#preset) §"Preset" — **RL Presets**
+(RaceLink-native, referenced by name from scene actions) and **WLED
+Presets** (WLED's own per-device slots, addressed by index). They
+live at different layers of the system and are edited through
+different dialogs.
 
 ### RL Presets dialog
 
