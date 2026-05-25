@@ -3,7 +3,7 @@
 ## Status
 
 Accepted (2026-04 — see also the source document
-[`../../RaceLink_RH_Plugin/manifest-dependency-format.md`](manifest-dependency-format.md)
+[`manifest-dependency-format.md`](manifest-dependency-format.md)
 which preceded this ADR formalisation).
 
 ## Context
@@ -72,7 +72,7 @@ normally from the RotorHazard Python environment.
 * **Version coupling per release.** Each plugin release pins one
   immutable host tag; the version-mapping is documented in the
   release playbook
-  ([`../../RaceLink_RH_Plugin/release-playbook.md`](release-playbook.md)).
+  ([`release-playbook.md`](release-playbook.md)).
 * **Future PyPI publication of `racelink-host`** — if the host is
   later published on PyPI, the plugin can switch to
   `racelink-host==<version>` with a single manifest edit. This ADR

@@ -9,9 +9,9 @@ tale here).
 
 For the why and the wire format, see:
 
-* [ARCHITECTURE.md](architecture.md) — package layout + threading model.
-* [PROTOCOL.md](../reference/wire-protocol.md) — wire-format reference.
-* [UI_CONVENTIONS.md](ui-conventions.md) — button vocabulary, toast/confirm rules.
+* [architecture.md](architecture.md) — package layout + threading model.
+* [wire-protocol.md](../reference/wire-protocol.md) — wire-format reference.
+* [ui-conventions.md](ui-conventions.md) — button vocabulary, toast/confirm rules.
 
 ## Adding a new scene-action kind
 
@@ -156,7 +156,7 @@ test will fail otherwise.
 9. **Tests** in [`tests/test_protocol.py`](../tests/test_protocol.py)
    for the body builder + parser, and in the matching service test
    file for the orchestration.
-10. **Documentation** in [PROTOCOL.md](../reference/wire-protocol.md): add the opcode
+10. **Documentation** in [wire-protocol.md](../reference/wire-protocol.md): add the opcode
     to the table and a body-layout subsection. The header is the
     source of truth, but the doc is what people read.
 
@@ -433,7 +433,7 @@ coherent piece of host logic.
    * Coverage for the boolean return contract (transport-missing
      returns False; happy path returns True).
    * Coverage for any error paths.
-6. **ARCHITECTURE doc** at [ARCHITECTURE.md](architecture.md):
+6. **Architecture doc** at [architecture.md](architecture.md):
    add a row to the Service Layer table.
 
 **Checklist:**
@@ -607,7 +607,7 @@ firmware-update, presets-download, discovery.
 Anything that touches the gateway, the device repository, or the
 SSE layer crosses a thread boundary. Before submitting:
 
-* **Read [ARCHITECTURE.md](architecture.md) §Threading Model**.
+* **Read [architecture.md](architecture.md) §Threading Model**.
   Confirm which thread your code runs on.
 * **Confirm the lock contract**: if you're mutating shared state,
   use the existing locks (`state_repository.lock`,

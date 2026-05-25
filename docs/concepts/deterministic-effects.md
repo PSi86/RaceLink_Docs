@@ -192,4 +192,4 @@ When WLED adds a new effect or a release modifies an existing one, run the follo
 - The "✓" list above (19 effects) is exhaustively verified by direct inspection of FX.cpp.
 - The non-deterministic catalogue is intentionally kept coarse — the user-facing question is "what works", not "exactly why each one doesn't".
 - 2D effects were spot-checked. None passed the `beat*`/accumulation filters; the determinism story for 2D effects would require a per-effect refactor of WLED core to thread `strip.timebase` into `beat*` calls.
-- If WLED's `beat*` API is ever updated to accept a "global timebase override", many more effects would qualify with a one-line WLED-core patch — that's the highest-leverage change for expanding this list.
+- If WLED's `beat*` API is ever updated to accept a "global timebase override", many more effects would qualify with a one-line WLED-core patch — that change would expand this list substantially.

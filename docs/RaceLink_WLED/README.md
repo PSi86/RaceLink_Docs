@@ -240,7 +240,7 @@ This avoids the need for a dedicated WLED fork just to build RaceLink-enabled fi
 For the full component table and repository URLs, see the top-level
 [the home page](../index.md). The official upstream WLED source is
 at https://github.com/wled/WLED. For operator-side WLED-node setup,
-see [`OPERATOR.md`](operator-setup.md).
+see [`operator-setup.md`](operator-setup.md).
 
 ---
 

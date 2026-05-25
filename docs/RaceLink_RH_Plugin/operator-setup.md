@@ -49,7 +49,7 @@ RotorHazard:
    editor, RL Preset editor, OTA dialog, Specials, and everything
    else from standalone mode.
 
-The split is **deliberate**: the side panels are what you reach for
+The split is intentional: the side panels are what you reach for
 during a race; the shared WebUI is where you author scenes / manage
 presets between races. Use one or the other depending on the task
 at hand.
@@ -173,7 +173,7 @@ program to all `STARTBLOCK`-capable devices in 'Start Line'."
 
 ### `rl_scene_action` — RaceLink Scene
 
-The most powerful ActionEffect: pick a saved scene and run it.
+Picks a saved scene and runs it.
 Single SELECT field: `rl_action_scene` (scene picker).
 
 Refreshes on `SCENES` scope (scene CRUD).

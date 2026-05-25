@@ -6,8 +6,8 @@ standpoint: what each one does, when to use it, what its quirks are,
 and how the pieces compose when you author scenes.
 
 For the bit-level wire format, see
-[`PROTOCOL.md`](../reference/wire-protocol.md). For terminology, see
-[`../../glossary.md`](../glossary.md).
+[`wire-protocol.md`](../reference/wire-protocol.md). For terminology, see
+[`../glossary.md`](../glossary.md).
 
 > **Three opcodes, three jobs.**
 >
@@ -101,7 +101,7 @@ firmware is telling the host what each slot means for that effect.
 For the catalogue of which effects render **identically across nodes
 when only `strip.timebase` is synced** (a prerequisite for offset
 mode), see
-[`../../concepts/deterministic-effects.md`](deterministic-effects.md).
+[`deterministic-effects.md`](deterministic-effects.md).
 
 ### The flags byte (shared with `OPC_PRESET`)
 
@@ -491,7 +491,7 @@ cyclic effects work in offset mode like state-machine effects.
 
 **Practical guidance.** When picking effects for offset cascades,
 prefer the **deterministic effects catalogue**
-([../../concepts/deterministic-effects.md](deterministic-effects.md))
+([deterministic-effects.md](deterministic-effects.md))
 either way — only those effects render identically across nodes
 under any synchronisation regime. If you observe phase-lock on a
 deterministic cyclic effect, your node firmware is too old; flash
@@ -851,4 +851,4 @@ overhead — but a sustained 10× ratio means something is wrong
 (slow USB, retry storm, etc.).
 
 For tuning, see
-[`PROTOCOL.md`](../reference/wire-protocol.md) §"USB latency tuning".
+[`wire-protocol.md`](../reference/wire-protocol.md) §"USB latency tuning".
