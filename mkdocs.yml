@@ -137,8 +137,9 @@ nav:
 
   - User Guide:
       - Operator guide (Host): RaceLink_Host/operator-guide.md
+      - Scene authoring & RL presets: RaceLink_Host/scene-authoring.md
       - Multi-Network operator guide: RaceLink_Host/multi-network.md
-      - Host WebUI guide: RaceLink_Host/webui-guide.md
+      - Host WebUI tour: RaceLink_Host/webui-guide.md
       - Standalone install (Windows + Linux): RaceLink_Host/standalone-install.md
       - Gateway operator setup: RaceLink_Gateway/operator-setup.md
       - WLED node operator setup: RaceLink_WLED/operator-setup.md
