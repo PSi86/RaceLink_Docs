@@ -10,7 +10,7 @@ recover stranded devices.
 For the underlying wire formats, see
 [`reference/wire-protocol.md`](../reference/wire-protocol.md) §
 `P_RfConfig` and §`OPC_RF_CONFIG`. For the channel table itself,
-see [`concepts/channels.md`](../concepts/channels.md).
+see [`reference/channels.md`](../reference/channels.md).
 
 ## When you'd reach for this
 
@@ -43,7 +43,7 @@ for stranded devices.
   data model transparently.
 * A **Channel** is a named slot in the host's region table
   (max five per region — see
-  [`concepts/channels.md`](../concepts/channels.md)). Picking
+  [`reference/channels.md`](../reference/channels.md)). Picking
   a channel for a network resolves to the seven wire-format
   `P_RfConfig` fields.
 * **Bind state** per attached gateway: `pending`, `bound`,
@@ -512,7 +512,7 @@ groundwork is transparent:
 
 ## See also
 
-* [`concepts/channels.md`](../concepts/channels.md) — the
+* [`reference/channels.md`](../reference/channels.md) — the
   shipped region/channel table.
 * [`reference/wire-protocol.md`](../reference/wire-protocol.md)
   §`P_RfConfig`, §`OPC_RF_CONFIG`, §`EV_RF_CHANGED`,

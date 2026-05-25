@@ -8,11 +8,14 @@ backs the narrative docs.
   every other doc.
 * [**Wire protocol**](wire-protocol.md) — packet headers, opcode
   bodies, per-direction rules, framing, gateway state machine.
-* [**Opcodes (CONTROL / OFFSET / SYNC)**](../concepts/opcodes.md) —
+* [**Opcodes (CONTROL / OFFSET / SYNC)**](opcodes.md) —
   pragmatic "when do I use which opcode?" explanation that sits
   alongside the wire-level spec.
-* [**Deterministic WLED effects**](../concepts/deterministic-effects.md)
-  — which effects render identically across nodes when only the
+* [**Region & Channels**](channels.md) — shipped EU868 / US915
+  channel tables, table-shape schema, separation rule, compliance
+  disclaimer.
+* [**Deterministic WLED effects**](deterministic-effects.md) —
+  which effects render identically across nodes when only the
   timebase is synced (prerequisite for offset mode).
 * [**Broadcast ruleset**](broadcast-ruleset.md) — two-stage filter
   pipeline (wire recv3 → per-opcode groupId) and per-opcode accept

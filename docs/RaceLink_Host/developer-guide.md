@@ -1000,7 +1000,7 @@ identically. The audited set is in
 (currently 19 effects); the source-of-truth catalogue lives in the WLED
 fork at `usermods/racelink_wled/docs/effects-deterministic.md`
 (the same content is also available in this consolidation at
-`concepts/deterministic-effects.md`).
+`reference/deterministic-effects.md`).
 
 **When to update**: a WLED release adds/changes an effect, or the
 catalogue doc grows a new "✓" entry.

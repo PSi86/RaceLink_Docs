@@ -90,9 +90,9 @@ RULES = [
     ("RaceLink_Host/*.md",            "../racelink_headless.h",       WLED + "/racelink_headless.h"),
     ("RaceLink_Host/*.md",            "../racelink_indicators.h",     WLED + "/racelink_indicators.h"),
 
-    # docs/concepts/deterministic-effects.md (was wled/docs/) uses
-    # "../../wled00/..." for the WLED tree
-    ("concepts/deterministic-effects.md", "../../wled00/",            WLED + "/wled00/"),
+    # docs/reference/deterministic-effects.md (was wled/docs/, then
+    # docs/concepts/) uses "../../wled00/..." for the WLED tree
+    ("reference/deterministic-effects.md", "../../wled00/",           WLED + "/wled00/"),
 
     # docs/RaceLink_WLED/*.md (incl. dev-session retrospectives) reference
     # the upstream WLED tree directly via "wled00/..." (no "../")

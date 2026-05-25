@@ -170,7 +170,7 @@ The available options as of 2026-05-09:
 
 The semantic model (Policy A vs Policy B), persistence path, and
 host-side implementation notes live in
-[`../concepts/opcodes.md` §"OPC_CONFIG — device configuration"](../concepts/opcodes.md#opc_config-device-configuration).
+[`../reference/opcodes.md` §"OPC_CONFIG — device configuration"](../reference/opcodes.md#opc_config-device-configuration).
 The byte-level wire format is in
 [`../reference/wire-protocol.md` §`P_Config`](../reference/wire-protocol.md#p_config-configuration-body-opc_config-opc_get_config-5-b-fixed).
 
@@ -191,8 +191,8 @@ For each property option (`0x05`–`0x0A`, plus STARTBLOCK `0x8C`/`0x8D`)
 the dialog issues one read, compares the device's live value against
 the host's stored intent, and surfaces any mismatch as a *device:
 &lt;value&gt; ⚠* badge with **Push host** / **Import device** buttons —
-see [`../concepts/opcodes.md` §"Live read and divergence
-resolution"](../concepts/opcodes.md#live-read-and-divergence-resolution)
+see [`../reference/opcodes.md` §"Live read and divergence
+resolution"](../reference/opcodes.md#live-read-and-divergence-resolution)
 for the operator workflow.
 
 #### Reset to RaceLink defaults
@@ -461,11 +461,11 @@ difference in offset mode. Recent WLED-usermod firmware fixes this
 via a persistent per-device phase offset re-asserted after every
 SYNC; if you observe the collapse, your node firmware is too old.
 The full explanation lives in
-[`../concepts/opcodes.md`](../concepts/opcodes.md) §"Cyclic-effect phase-lock".
+[`../reference/opcodes.md`](../reference/opcodes.md) §"Cyclic-effect phase-lock".
 
 For the catalogue of which WLED effects are deterministic (and
 therefore safe to use in offset mode) see
-[`../concepts/deterministic-effects.md`](../concepts/deterministic-effects.md).
+[`../reference/deterministic-effects.md`](../reference/deterministic-effects.md).
 
 ## Indicators
 

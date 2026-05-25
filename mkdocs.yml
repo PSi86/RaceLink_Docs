@@ -14,11 +14,9 @@ edit_uri: edit/main/docs/
 docs_dir: docs
 
 # Files that exist on disk but must not appear in the built site.
-# sources.md is a provenance ledger kept for AI/maintainer context only;
-# concepts/index.md is the landing page of the retired "Concepts" tab.
+# sources.md is a provenance ledger kept for AI/maintainer context only.
 exclude_docs: |
   sources.md
-  concepts/index.md
 
 # Files that are part of the build (reachable by URL) but intentionally
 # absent from the navigation sidebar. The four component READMEs are
@@ -152,9 +150,9 @@ nav:
       - reference/index.md
       - Glossary: glossary.md
       - Wire protocol: reference/wire-protocol.md
-      - Opcodes (CONTROL / OFFSET / SYNC): concepts/opcodes.md
-      - Region & Channels: concepts/channels.md
-      - Deterministic WLED effects: concepts/deterministic-effects.md
+      - Opcodes (CONTROL / OFFSET / SYNC): reference/opcodes.md
+      - Region & Channels: reference/channels.md
+      - Deterministic WLED effects: reference/deterministic-effects.md
       - Broadcast ruleset: reference/broadcast-ruleset.md
       - Wire timing — per-packet wall-clock: reference/wire-timing.md
       - Scene file format: reference/scene-format.md

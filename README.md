@@ -31,7 +31,6 @@ RaceLink_Docs/
 │   ├── glossary.md, contributing.md, versioning.md,
 │   │   troubleshooting.md, sources.md, changelog.md,
 │   │   licenses.md
-│   ├── concepts/              (cross-component user concepts)
 │   ├── reference/             (cross-component formal specs)
 │   ├── RaceLink_Host/         (Host-specific docs)
 │   ├── RaceLink_Gateway/      (Gateway-specific docs)

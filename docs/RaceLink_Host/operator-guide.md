@@ -216,7 +216,7 @@ actual device state.
 #### WLED Properties vs Methods
 
 The WLED tab carries two kinds of entries (see
-[`../concepts/opcodes.md` §"Properties vs Methods"](../concepts/opcodes.md#properties-vs-methods)
+[`../reference/opcodes.md` §"Properties vs Methods"](../reference/opcodes.md#properties-vs-methods)
 for the wire-protocol view):
 
 * **Properties** are persistent values: `Target Refresh Rate`,

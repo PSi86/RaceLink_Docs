@@ -246,7 +246,7 @@ link. Renders one tab per declared capability (WLED, STARTBLOCK,
 value disagrees with the host's stored intent. See
 [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md)
 §4 for the operator workflow and
-[`concepts/opcodes.md`](concepts/opcodes.md#live-read-and-divergence-resolution)
+[`reference/opcodes.md`](reference/opcodes.md#live-read-and-divergence-resolution)
 for the wire-level details.
 
 ### Master pill
@@ -283,14 +283,14 @@ network at a time; the boundary is enforced server-side at every
 bulk regroup. A single-gateway deployment runs on the "Default"
 network created by the v1→v2 persistence migration; multi-gateway
 setups can have several networks at once with the
-[separation rule](concepts/channels.md#separation-rule) keeping
+[separation rule](reference/channels.md#separation-rule) keeping
 their radios out of each other's way. See
 [`RaceLink_Host/multi-network.md`](RaceLink_Host/multi-network.md).
 
 ### Channel
 
 A named slot in the host's region table (max five per region —
-see [`concepts/channels.md`](concepts/channels.md)). Picking a
+see [`reference/channels.md`](reference/channels.md)). Picking a
 channel for a network resolves to the seven wire-format
 `P_RfConfig` fields. The Network Manager dialog binds to channels;
 the Advanced (raw `rf_config`) flow bypasses the table.
@@ -508,7 +508,7 @@ via `OPC_SYNC`, so deterministic effects render identically — a
 prerequisite for offset mode and ARM-on-SYNC.
 
 The phase-lock issue (covered in
-[`concepts/opcodes.md`](concepts/opcodes.md) §"Cyclic-effect
+[`reference/opcodes.md`](reference/opcodes.md) §"Cyclic-effect
 phase-lock") is what happens when this synchronisation also makes
 time-dependent cyclic effects
 phase-lock instead of staying offset; the firmware applies a

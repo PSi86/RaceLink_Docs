@@ -345,7 +345,7 @@ but it drives both the host UX and the read-back support:
 
 These option codes set persistent host-authorised overrides of the
 device's compile-time RaceLink defaults. See
-[`../concepts/opcodes.md` §"OPC_CONFIG — device configuration"](../concepts/opcodes.md#opc_config-device-configuration)
+[`opcodes.md` §"OPC_CONFIG — device configuration"](opcodes.md#opc_config-device-configuration)
 for the override semantics, persistence, and Policy A vs Policy B
 distinction.
 
@@ -570,7 +570,7 @@ config — the host can use that to render "we tried X, gateway
 stayed on Y".
 
 The shipped channel table in
-[`docs/concepts/channels.md`](../concepts/channels.md) is what
+[`docs/reference/channels.md`](channels.md) is what
 the Network Manager dialog binds to; an Advanced-mode operator
 can also POST raw `rf_config` dicts to the host's
 `PUT /api/networks/{id}` endpoint to bypass the table.

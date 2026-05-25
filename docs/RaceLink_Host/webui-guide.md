@@ -3,7 +3,7 @@
 How the RaceLink Host WebUI is structured, what each piece is for,
 and how to read its lifecycle and state signalling. Companion to
 [`operator-guide.md`](operator-guide.md) (which is task-shaped) and
-[`opcodes.md`](../concepts/opcodes.md) (which explains the wire opcodes).
+[`opcodes.md`](../reference/opcodes.md) (which explains the wire opcodes).
 
 > **Audience.** Operators who already know *what* they want to do
 > (run a scene, update firmware) and want to know *how* the WebUI
@@ -317,7 +317,7 @@ actions automatically — the host re-writes scene records when the
 preset record changes.
 
 For the wire-level mapping of an RL preset to `OPC_CONTROL` see
-[`opcodes.md`](../concepts/opcodes.md).
+[`opcodes.md`](../reference/opcodes.md).
 
 ### WLED Presets dialog
 
@@ -555,7 +555,7 @@ If any of those steps misbehave, see
 
 * [`operator-guide.md`](operator-guide.md) — the task-shaped operator
   walkthrough (Discover → Group → Configure → Author → Run).
-* [`opcodes.md`](../concepts/opcodes.md) — pragmatic explanation of
+* [`opcodes.md`](../reference/opcodes.md) — pragmatic explanation of
   `OPC_CONTROL` / `OPC_OFFSET` / `OPC_SYNC`.
 * [`ui-conventions.md`](ui-conventions.md) — button vocabulary,
   toast / confirm conventions (developer-side).

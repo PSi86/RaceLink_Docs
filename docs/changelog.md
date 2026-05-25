@@ -194,7 +194,7 @@ behaviour change.
   same-SyncWord pair). The Network Manager dialog binds against
   the table; the host resolves the seven wire-format `P_RfConfig`
   fields at apply-time. See
-  [`concepts/channels.md`](concepts/channels.md).
+  [`reference/channels.md`](reference/channels.md).
 * **Gateway-bind state machine.** Per attached gateway:
   `pending` / `bound` / `conflict` / `unbound`. The
   **GatewayBindWizard** auto-opens for `conflict` / `unbound` and
@@ -235,7 +235,7 @@ engine.
 
 ### Docs touched (new)
 
-* [`concepts/channels.md`](concepts/channels.md) — region/channel
+* [`reference/channels.md`](reference/channels.md) — region/channel
   tables.
 * [`RaceLink_Host/multi-network.md`](RaceLink_Host/multi-network.md) —
   operator-facing guide covering bind wizard, RF migration,

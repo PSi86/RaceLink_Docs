@@ -417,7 +417,7 @@ STARTBLOCK slot count). Wrapped in a TaskManager job.
 The `key` → `option` byte mapping is resolved by `SpecialsService`.
 The host packs `value` into `data0..3` per the schema's `bytes` /
 `shape` fields (see
-[`../concepts/opcodes.md` §"Properties vs Methods"](../concepts/opcodes.md#properties-vs-methods)).
+[`opcodes.md` §"Properties vs Methods"](opcodes.md#properties-vs-methods)).
 
 **Response 200**: `{ "ok": true, "task": <task snapshot> }`.
 
