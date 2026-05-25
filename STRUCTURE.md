@@ -71,8 +71,8 @@ middle column; cross-references in the right column.
 | **RotorHazard plugin install** | [`docs/RaceLink_RH_Plugin/README.md`](docs/RaceLink_RH_Plugin/README.md) | `RaceLink_RH_Plugin/operator-setup.md` |
 | **Gateway operator setup** | [`docs/RaceLink_Gateway/operator-setup.md`](docs/RaceLink_Gateway/operator-setup.md) | `RaceLink_Host/operator-guide.md` |
 | **WLED node operator setup** | [`docs/RaceLink_WLED/operator-setup.md`](docs/RaceLink_WLED/operator-setup.md) | `RaceLink_WLED/README.md` |
-| **Headless Mode (operator)** | [`docs/RaceLink_WLED/operator-setup.md`](docs/RaceLink_WLED/operator-setup.md) §"Headless Mode" | `glossary.md` §Headless Mode; `reference/wire-protocol.md` §`P_Headless` |
-| **Indicators (operator + reference)** | [`docs/RaceLink_WLED/operator-setup.md`](docs/RaceLink_WLED/operator-setup.md) §"Indicators" | `glossary.md` §Indicator; `reference/wire-protocol.md` §`P_Indicate` |
+| **Headless Mode (operator)** | [`docs/RaceLink_WLED/headless-mode.md`](docs/RaceLink_WLED/headless-mode.md) | `glossary.md` §Headless Mode; `reference/wire-protocol.md` §`P_Headless` |
+| **Indicators (operator + reference)** | [`docs/RaceLink_WLED/indicators.md`](docs/RaceLink_WLED/indicators.md) | `glossary.md` §Indicator; `reference/wire-protocol.md` §`P_Indicate` |
 | **WLED node pin configuration** | [`docs/RaceLink_WLED/pin-config.md`](docs/RaceLink_WLED/pin-config.md) | `RaceLink_WLED/README.md` §"Build profile notes" |
 | **WLED radio modules (developer)** | [`docs/RaceLink_WLED/radio-modules.md`](docs/RaceLink_WLED/radio-modules.md) | `RaceLink_WLED/operator-setup.md`, `RaceLink_WLED/README.md` |
 | **RotorHazard plugin operator (panels, quickbuttons)** | [`docs/RaceLink_RH_Plugin/operator-setup.md`](docs/RaceLink_RH_Plugin/operator-setup.md) | `RaceLink_Host/architecture.md` §"UI Scope Matrix" |
@@ -134,8 +134,8 @@ paths are inside the matching component repository (e.g.
 | If you change … | Update … |
 |---|---|
 | `racelink_proto.h` (byte-identical across Host + Gateway + WLED) | `docs/reference/wire-protocol.md` opcode table + body layout tables; `docs/glossary.md` if a new opcode/flag is named; `docs/RaceLink_Host/developer-guide.md` §"Adding a new wire opcode" if the *process* changed |
-| `racelink_headless.h` (Headless-Mode scene catalog — byte-identical across Gateway + WLED only; **not present in Host** — the Host has no Python consumer for this header) | `docs/RaceLink_WLED/operator-setup.md` §"Headless Mode" → Scenes table; `docs/RaceLink_Host/developer-guide.md` §"Adding a new Headless scene to the catalog"; `docs/glossary.md` §"Headless Mode" if semantics change |
-| `racelink_indicators.h` (Indicator catalog — byte-identical across Host + Gateway + WLED; Host carries it because `racelink/domain/indicators.py` is a hand-authored mirror that the drift test guards) | `docs/RaceLink_WLED/operator-setup.md` §"Indicators" → Catalog table; `docs/RaceLink_Host/developer-guide.md` §"Adding a new Indicator to the catalog"; `docs/glossary.md` §"Indicator" if semantics change; `docs/reference/wire-protocol.md` §`P_Indicate` if the cancel-via-`durationSec=0` contract changes |
+| `racelink_headless.h` (Headless-Mode scene catalog — byte-identical across Gateway + WLED only; **not present in Host** — the Host has no Python consumer for this header) | `docs/RaceLink_WLED/headless-mode.md` → Scenes table; `docs/RaceLink_Host/developer-guide.md` §"Adding a new Headless scene to the catalog"; `docs/glossary.md` §"Headless Mode" if semantics change |
+| `racelink_indicators.h` (Indicator catalog — byte-identical across Host + Gateway + WLED; Host carries it because `racelink/domain/indicators.py` is a hand-authored mirror that the drift test guards) | `docs/RaceLink_WLED/indicators.md` → Catalog table; `docs/RaceLink_Host/developer-guide.md` §"Adding a new Indicator to the catalog"; `docs/glossary.md` §"Indicator" if semantics change; `docs/reference/wire-protocol.md` §`P_Indicate` if the cancel-via-`durationSec=0` contract changes |
 | `racelink_transport_core.h` (TX pipeline / LBT / CAD; byte-identical across Gateway + WLED only; **not present in Host** — same FW-only rationale as `racelink_headless.h`) | `docs/reference/wire-protocol.md` §"Host ↔ Gateway flow control" if the LBT / `scheduleSend(jitterMaxMs=0)` contract changes; `docs/RaceLink_Host/developer-guide.md` §"Time-critical TX" if the unified-bypass contract changes |
 | `RaceLink_Host/racelink/protocol/{packets,codec,rules}.py` | `docs/reference/wire-protocol.md` (the rules table mirrors `rules.RULES`); cross-check that the body-builder doc matches `packets.build_*` |
 | `RaceLink_Host/racelink/transport/{gateway_serial,framing}.py` | `docs/RaceLink_Host/architecture.md` §"Transport Interface" + §"Threading Model" if locks/condition variables change; `docs/reference/wire-protocol.md` §"USB framing" / §"Host ↔ Gateway flow control" |
@@ -176,7 +176,7 @@ paths are inside the matching component repository (e.g.
 | `RaceLink_Host/racelink/domain/wled_effects.py` / `wled_palettes.py` / `wled_palette_color_rules.py` | `docs/RaceLink_Host/developer-guide.md` §"Regenerating WLED metadata" — **these files are auto-generated; do not hand-edit, regenerate** |
 | `RaceLink_Host/racelink/domain/wled_deterministic.py` | `docs/reference/deterministic-effects.md`; `docs/RaceLink_Host/developer-guide.md` §"Updating the WLED-deterministic effects list" |
 | `RaceLink_Host/racelink/domain/state_scope.py` | `docs/reference/sse-channels.md`; `docs/RaceLink_Host/architecture.md` §"UI Scope Matrix" |
-| `RaceLink_Host/racelink/domain/indicators.py` (Python mirror of the indicator catalog) | `docs/RaceLink_WLED/operator-setup.md` §"Indicators"; `docs/glossary.md` §"Indicator" if semantics change |
+| `RaceLink_Host/racelink/domain/indicators.py` (Python mirror of the indicator catalog) | `docs/RaceLink_WLED/indicators.md`; `docs/glossary.md` §"Indicator" if semantics change |
 | `RaceLink_Host/racelink/domain/capabilities.py` (caps filter for scene targets) | `docs/glossary.md` §"Capability"; `docs/RaceLink_Host/operator-guide.md` if the cap-filter UX changes |
 | `RaceLink_Host/racelink/domain/specials.py` / `models.py` | `docs/reference/wire-protocol.md` body layouts if wire-relevant |
 | `RaceLink_Host/racelink/static/scenes.js` | `docs/reference/scene-format.md` (kind-to-cap mapping); `docs/RaceLink_Host/ui-conventions.md` if button vocabulary touched |
@@ -192,8 +192,8 @@ paths are inside the matching component repository (e.g.
 | `RaceLink_Gateway/src/racelink_transport_core.h` | `docs/reference/wire-protocol.md`; `docs/RaceLink_Gateway/README.md` |
 | `RaceLink_Gateway/platformio.ini` (board, radio defaults) | `docs/RaceLink_Gateway/README.md` §"Hardware and build target"; `docs/RaceLink_Gateway/operator-setup.md` §"Radio defaults" |
 | `RaceLink_WLED/racelink_wled.{h,cpp}` (usermod source at repo root) | `docs/RaceLink_WLED/operator-setup.md`; `docs/reference/deterministic-effects.md` if effect determinism changes |
-| `RaceLink_WLED/racelink_headless.h` (Headless scene catalog) | `docs/RaceLink_WLED/operator-setup.md` §"Headless Mode"; `docs/RaceLink_Host/developer-guide.md` §"Where the headless state lives"; `docs/glossary.md` if semantics change |
-| `RaceLink_WLED/racelink_indicators.h` (Indicator catalog) | `docs/RaceLink_WLED/operator-setup.md` §"Indicators"; `docs/glossary.md` if semantics change |
+| `RaceLink_WLED/racelink_headless.h` (Headless scene catalog) | `docs/RaceLink_WLED/headless-mode.md`; `docs/RaceLink_Host/developer-guide.md` §"Where the headless state lives"; `docs/glossary.md` if semantics change |
+| `RaceLink_WLED/racelink_indicators.h` (Indicator catalog) | `docs/RaceLink_WLED/indicators.md`; `docs/glossary.md` if semantics change |
 | `RaceLink_WLED/build_profiles/*.platformio_override.ini` (new or changed) | `docs/RaceLink_WLED/README.md` §"Supported hardware profiles"; `docs/RaceLink_WLED/operator-setup.md` §"Default factory state" if defaults changed; `docs/RaceLink_WLED/pin-config.md` if a profile's `-D RACELINK_PIN_*` defaults change |
 | `RaceLink_WLED/racelink_epaper.{h,cpp}` (e-paper async worker; only built when `-D RACELINK_EPAPER` is set) | `docs/RaceLink_WLED/pin-config.md` if the `epaper_pins` block changes |
 | `RaceLink_WLED/.github/workflows/release.yml` | `docs/RaceLink_WLED/README.md` §"GitHub release workflow"; `docs/versioning.md` |
@@ -237,7 +237,9 @@ authoritative file followed by supporting code.
 | `docs/RaceLink_Gateway/README.md` | `RaceLink_Gateway/src/main.cpp`, `racelink_transport_core.h`, `platformio.ini` |
 | `docs/RaceLink_Gateway/operator-setup.md` | (operator aggregator; OLED behaviour from `RaceLink_Gateway/src/main.cpp`) |
 | `docs/RaceLink_WLED/README.md` | `RaceLink_WLED/build_profiles/*.platformio_override.ini`; `RaceLink_WLED/.github/workflows/release.yml`; `RaceLink_WLED/version.json` |
-| `docs/RaceLink_WLED/operator-setup.md` | `RaceLink_WLED/racelink_wled.{h,cpp}` (factory state, pairing); `RaceLink_WLED/racelink_headless.h` (Headless Mode scene catalog, probe constants); `RaceLink_WLED/racelink_indicators.h` (Indicator catalog) |
+| `docs/RaceLink_WLED/operator-setup.md` | `RaceLink_WLED/racelink_wled.{h,cpp}` (factory state, pairing, `applyRaceLinkDefaults()`) |
+| `docs/RaceLink_WLED/headless-mode.md` | `RaceLink_WLED/racelink_wled.{h,cpp}` (Headless Master state machine); `RaceLink_WLED/racelink_headless.h` (scene catalog + state structs) |
+| `docs/RaceLink_WLED/indicators.md` | `RaceLink_WLED/racelink_wled.{h,cpp}` (`handleOverlayDraw()`); `RaceLink_WLED/racelink_indicators.h` (catalog); Host mirror `RaceLink_Host/racelink/domain/indicators.py` |
 | `docs/reference/deterministic-effects.md` | upstream WLED `wled00/FX.cpp` per-effect; `RaceLink_Host/racelink/domain/wled_deterministic.py` (the host-side audited set) |
 | `docs/RaceLink_RH_Plugin/README.md` | `RaceLink_RH_Plugin/custom_plugins/racelink_rh_plugin/manifest.json`; `pyproject.toml` |
 | `docs/RaceLink_RH_Plugin/operator-setup.md` | `RaceLink_RH_Plugin/custom_plugins/racelink_rh_plugin/plugin/ui.py`; `actions.py`; `bootstrap.py` |
@@ -247,7 +249,6 @@ authoritative file followed by supporting code.
 | `docs/RaceLink_Host/reply-matching.md` | `RaceLink_Host/racelink/services/pending_requests.py`; `RaceLink_Host/racelink/services/gateway_service.py` `send_and_match` / `send_and_wait_with_retries` |
 | `docs/RaceLink_WLED/pin-config.md` | `RaceLink_WLED/racelink_wled.{h,cpp}` (the runtime-configurable `pins` / `epaper_pins` `cfg.json` blocks); `RaceLink_WLED/build_profiles/*.platformio_override.ini` (per-target `-D RACELINK_PIN_*` defaults) |
 | `docs/RaceLink_WLED/radio-modules.md` | `RaceLink_WLED/racelink_wled.cpp` (`radioInit()`); the RadioLib SX126x / SX127x class hierarchy (`-D RACELINK_SX1262` vs `-D RACELINK_LLCC68`) |
-| `docs/RaceLink_WLED/dev-session-2026-05-sync-investigation.md` | (retrospective — no current backing code; per-change rollback pointers inline in the doc) |
 | `docs/reference/broadcast-ruleset.md` | `RaceLink_Host/racelink_proto.h` (`RULES[]`); `RaceLink_Host/racelink/protocol/rules.py`; firmware `racelink_wled.cpp` (`handlePacket` / per-opcode handlers) |
 | `docs/reference/wire-timing.md` | `RaceLink_Host/racelink/transport/framing.py`; `RaceLink_Host/racelink/services/rf_timing.py`; firmware `racelink_transport_core.h` (`scheduleSend` LBT/CAD path) |
 | `docs/roadmap.md` | (forward-looking commitments — no backing code yet) |

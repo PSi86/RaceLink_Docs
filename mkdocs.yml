@@ -142,6 +142,8 @@ nav:
       - Standalone install (Windows + Linux): RaceLink_Host/standalone-install.md
       - Gateway operator setup: RaceLink_Gateway/operator-setup.md
       - WLED node operator setup: RaceLink_WLED/operator-setup.md
+      - WLED Headless Mode: RaceLink_WLED/headless-mode.md
+      - WLED Indicators: RaceLink_WLED/indicators.md
       - WLED node pin configuration: RaceLink_WLED/pin-config.md
       - RotorHazard plugin (operator): RaceLink_RH_Plugin/operator-setup.md
       - Troubleshooting: troubleshooting.md
@@ -169,7 +171,6 @@ nav:
           - Reply matching (PendingMatcher): RaceLink_Host/reply-matching.md
       - Component internals:
           - WLED radio modules: RaceLink_WLED/radio-modules.md
-          - WLED session retrospective — V3↔V4 sync (2026-05): RaceLink_WLED/dev-session-2026-05-sync-investigation.md
           - RH plugin — manifest dependency format: RaceLink_RH_Plugin/manifest-dependency-format.md
           - RH plugin — ADR-0001 manifest dependency: RaceLink_RH_Plugin/adr-0001-manifest-dependency.md
           - RH plugin — release playbook: RaceLink_RH_Plugin/release-playbook.md

@@ -713,8 +713,11 @@ devices was historically normalized by an auto-applied Boot Preset;
 removing the preset exposed the underlying divergence) — a firmware
 fix is not needed.
 
-The full retrospective with per-change rollback pointers lives at
-[`RaceLink_WLED/dev-session-2026-05-sync-investigation.md`](RaceLink_WLED/dev-session-2026-05-sync-investigation.md).
+The full retrospective with per-change rollback pointers lives in
+the maintainer-internal session archive at
+`_private/sessions/dev-session-2026-05-sync-investigation.md`
+(gitignored, local-only — relocated from the published docs in
+Gruppe 6).
 
 ---
 

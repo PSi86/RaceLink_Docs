@@ -492,7 +492,7 @@ promotion, red = error, red+blue = operator-locate, mixed warm =
 demotion). Pure red / green / blue / white are deliberately
 avoided so an indicator cannot be confused with a normal scene
 colour. See
-[`RaceLink_WLED/operator-setup.md` §Indicators](../RaceLink_WLED/operator-setup.md#indicators)
+[`RaceLink_WLED/indicators.md`](../RaceLink_WLED/indicators.md)
 for the full catalog table and rendering details.
 
 Reply: **none** (`RESP_NONE`). Wire shape is identical for broadcast

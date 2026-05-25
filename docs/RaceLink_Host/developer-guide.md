@@ -221,7 +221,7 @@ The Headless Master keeps a small amount of per-master state in
 `cfg.json` so a power-cycle (or battery swap) does not lose the
 pairing context. All fields live under `RaceLink.overrides`; the
 operator-visible reference is
-[`RaceLink_WLED/operator-setup.md` §"Persistence"](../RaceLink_WLED/operator-setup.md#persistence).
+[`RaceLink_WLED/headless-mode.md` §"Persistence"](../RaceLink_WLED/headless-mode.md#persistence).
 
 **Cardinal rules for changing or adding a persistence field:**
 
