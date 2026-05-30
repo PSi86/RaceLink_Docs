@@ -1,7 +1,7 @@
 # Scene File Format
 
 On-disk reference for `~/.racelink/scenes.json`. Distilled from the
-operator guide ([`../RaceLink_Host/operator-guide.md`](../RaceLink_Host/operator-guide.md)),
+scene-authoring guide ([`../RaceLink_Host/scene-authoring.md`](../RaceLink_Host/scene-authoring.md)),
 the developer guide
 ([`../RaceLink_Host/developer-guide.md`](../RaceLink_Host/developer-guide.md))
 and the source-repo Scene-Manager design (`plans/scene-manager-feature.md`,

@@ -81,9 +81,27 @@ After a successful boot with two gateways attached:
 * **Group filter** still works the same; combined with the
   network filter, the table shows the intersection.
 
+## The Network Manager dialog
+
+The Network Manager covers CRUD on existing networks — rename, switch
+channels, and remove. It is opened from the master bar.
+
+![Network Manager dialog — network list (RF + Ethernet) on the left; name, region, channel, RF preview and read-only gateway-binding panel on the right](../assets/screenshots/dialog_network_manager.png)
+
+The left pane lists every network with its kind and binding (RF
+networks show `<region> · <gateway MAC>`; Ethernet networks show
+`Ethernet · udp:<port>`), plus an **+ Add Ethernet network** button.
+The right pane edits the selected network's **Name**, **Region** and
+**Channel**, with a live **RF preview**. The **Gateway binding** panel
+(bound MAC + the settings the gateway actually reports) is **read-only
+here** — change the binding or actual RF settings via the gateway-bind
+wizard, not this dialog. **Save** persists name/channel edits (a
+channel change that diverges from what the gateway is broadcasting
+prompts an [RF migration](#rf-migration)); **Delete network** removes
+the selected one.
+
 ## Create a network
 
-The Network Manager dialog covers CRUD on existing networks.
 The flow for creating a fresh network starts from the
 **GatewayBindWizard** when an unknown gateway attaches:
 
@@ -180,8 +198,10 @@ on the SSE channel; the wizard closes itself.
 
 ## Channel Scan (stranded-device recovery)
 
-Open with the 🔎 wrench-menu button in the header (or via the
+Open with the 🔎 magnifier button in the header (or via the
 SetupChangeAssistant's per-row "Run channel scan" action).
+
+![Channel Scan dialog — gateway and region pickers, a checklist of the region's channels with their frequency/SF/SyncWord, and a per-channel dwell field](../assets/screenshots/dialog_channel_scan.png)
 
 1. Pick the gateway to scan from (single-gateway deployments
    default to the only one).
@@ -294,6 +314,32 @@ USB flicker. The assistant is now reached via:
   the missing-transport case),
 * The header's `⚠ Pair…` button (covers `conflict` / `unbound`),
 * The host-settings menu (operator-driven inspection at any time).
+
+The **Pair Assistant** front-end of the assistant walks the four
+device-recovery cases when pre-existing devices don't auto-pair after a
+gateway change — pick the situation that matches your setup:
+
+![Pair Assistant dialog — four selectable recovery cases A–D for devices that won't auto-pair after a gateway change](../assets/screenshots/dialog_pair_assistant.png)
+
+* **A — Devices are RF-compatible, just need re-pairing.** The devices
+  already share the gateway's radio settings; runs a discovery +
+  group-assignment sweep that re-binds every known device. No radio
+  settings entered.
+* **B — Devices on old settings, migrate to new.** The gateway briefly
+  switches to the *old* settings, discovers the devices, pushes the
+  *new* settings per device, then persists the new settings on the
+  gateway. You pick both as a **Region + Channel** from the channel
+  table (see [Region & Channels](../reference/channels.md)).
+* **C — Bring the gateway to the devices' settings.** The gateway adopts
+  the devices' radio settings and reboots; natural re-discovery follows.
+  Pick the device-side **Region + Channel**.
+* **D — Device settings unknown.** Recovery hints only — recover the old
+  settings from a backup and use case B, or factory-reset the affected
+  devices via the boot-counter recovery path.
+
+For B and C the dialog pre-selects the channel matching the gateway's
+current settings, so the common "align to what the gateway already has"
+case is one click.
 
 Surfaced diff categories:
 

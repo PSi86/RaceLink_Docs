@@ -10,8 +10,8 @@ the RaceLink WLED fork the same files live alongside the
 `racelink_wled` usermod.
 
 The operator-facing failure-mode catalog is in
-[`../RaceLink_Host/operator-guide.md`](../RaceLink_Host/operator-guide.md)
-§"Firmware updates" / §"Common OTA failure modes"; the live wire of
+[`../RaceLink_Host/firmware-updates.md`](../RaceLink_Host/firmware-updates.md)
+§"Common OTA failure modes"; the live wire of
 the workflow lives in `racelink/services/ota_workflow_service.py`
 and `racelink/services/ota_service.py`.
 

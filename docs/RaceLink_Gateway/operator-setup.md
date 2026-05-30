@@ -35,8 +35,8 @@ firmware build / flash instructions see [`README.md`](README.md).
    second of the page load. If it stays in `UNKNOWN`, click the **↻**
    refresh button next to it.
 
-See [`../RaceLink_Host/operator-guide.md`](../RaceLink_Host/operator-guide.md)
-§"Confirm the gateway is connected" for the full state-by-state
+See [`../RaceLink_Host/webui-overview.md`](../RaceLink_Host/webui-overview.md)
+§"The master bar — gateway badges" for the full state-by-state
 operator playbook.
 
 ## OLED indicator
@@ -83,8 +83,8 @@ broadcast and pairs with whichever gateway sent the discovery.
 To migrate a node between gateways, use the WebUI's **Forget master
 MAC** option (in the Node Config dropdown) on the node, then
 re-discover from the new gateway. See
-[`../RaceLink_Host/operator-guide.md`](../RaceLink_Host/operator-guide.md)
-§"Forgetting a master MAC un-pairs the device".
+[`../RaceLink_Host/device-setup.md`](../RaceLink_Host/device-setup.md)
+§"Node config — single-shot commands".
 
 ## Gateway ownership rules
 

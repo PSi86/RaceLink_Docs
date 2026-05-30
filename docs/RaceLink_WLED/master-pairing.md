@@ -78,7 +78,7 @@ persistence before it reboots**:
 The operator sees a brief outage (~5 s) and then the node online on the
 target network, paired to the target gateway — no manual *Forget master
 MAC* step. See
-[Move groups to a different network](../RaceLink_Host/operator-guide.md#move-groups-to-a-different-network).
+[Move groups between networks](../RaceLink_Host/multi-network.md#move-groups-between-networks).
 
 ## Manual control: Forget master MAC
 

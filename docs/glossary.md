@@ -197,8 +197,8 @@ each group offset by a few ms — producing a wave or cascade effect
 instead of a simultaneous fire. Configured via *Mode* (the formula
 that turns each device's `groupId` into a per-device delay) plus
 *Participants* and *Children*. See
-[`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md) §6a for
-the full operator workflow.
+[`RaceLink_Host/scene-authoring.md`](RaceLink_Host/scene-authoring.md)
+§"Working with offset mode" for the full operator workflow.
 
 ### Specials
 
@@ -217,8 +217,8 @@ link. Renders one tab per declared capability (WLED, STARTBLOCK,
 …). On open, the host reads each property from the device via
 `OPC_GET_CONFIG` and shows a divergence badge if the device's live
 value disagrees with the host's stored intent. See
-[`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md)
-§4 for the operator workflow and
+[`RaceLink_Host/device-setup.md`](RaceLink_Host/device-setup.md)
+§"Configure devices (Specials)" for the operator workflow and
 [`reference/opcodes.md`](reference/opcodes.md#live-read-and-divergence-resolution)
 for the wire-level details.
 

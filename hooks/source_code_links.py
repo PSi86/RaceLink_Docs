@@ -63,8 +63,9 @@ RULES = [
     # host repo root: "racelink/..." (no leading "../")
     ("RaceLink_Host/architecture.md", "racelink/",                    HOST + "/racelink/"),
 
-    # docs/RaceLink_Host/*.md (operator-guide, developer-guide,
-    # ui-conventions, standalone-install, webui-guide) used to live in
+    # docs/RaceLink_Host/*.md (webui-overview, device-setup,
+    # firmware-updates, rl-presets, scene-authoring, developer-guide,
+    # ui-conventions, standalone-install) used to live in
     # `host/docs/` and reference the repo root via "../"
     ("RaceLink_Host/*.md",            "../racelink/",                 HOST + "/racelink/"),
     ("RaceLink_Host/*.md",            "../tests/",                    HOST + "/tests/"),

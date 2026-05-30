@@ -288,7 +288,7 @@ Other user-facing and contributor-facing docs in this repo:
 
 | File | Audience | Content |
 |---|---|---|
-| [`operator-guide.md`](operator-guide.md) | Operators setting up a race | Glossary, end-to-end workflow, safety rules |
+| [`webui-overview.md`](webui-overview.md) | Operators setting up a race | WebUI orientation; links to the device-setup / firmware / RL-preset / scene task guides |
 | [`developer-guide.md`](developer-guide.md) | Contributors adding a feature | Checklists for action kinds, opcodes, services |
 | [`ui-conventions.md`](ui-conventions.md) | Contributors writing WebUI | Button vocabulary, toast / confirm conventions |
 | [`reference/wire-protocol.md`](../reference/wire-protocol.md) | Anyone reading wire traces | Wire format reference (M2N/N2M, opcodes, body layouts) |

@@ -27,7 +27,7 @@ site.
 |---|---|---|
 | `RaceLink_Host/README.md` | `RaceLink_Host/README.md` | Cleaned: fixed Windows-absolute path, trimmed duplicated system overview |
 | `RaceLink_Host/architecture.md` | `RaceLink_Host/ARCHITECTURE.md` | Cleaned: includes the content of `docs/repo_split_map.md` as a "Repo split history" subsection |
-| `RaceLink_Host/operator-guide.md` | `RaceLink_Host/docs/OPERATOR_GUIDE.md` | Cleaned: cross-links updated; cyclic-effect phase-lock note added |
+| `RaceLink_Host/operator-guide.md` | `RaceLink_Host/docs/OPERATOR_GUIDE.md` | Cleaned: cross-links updated; cyclic-effect phase-lock note added. **Retired 2026-05-31** in the screenshot-driven User-Guide rebuild — content split into `webui-overview.md` (orientation), `device-setup.md` (Discover/Group/Specials), `firmware-updates.md` (OTA + WLED presets); `webui-guide.md` (the WebUI tour) was retired in the same change, folded into `webui-overview.md` + the task pages |
 | `RaceLink_Host/developer-guide.md` | `RaceLink_Host/docs/DEVELOPER_GUIDE.md` | **Fixed** the "three vs four gates" wording contradiction (audit C1); replaced workstation paths with upstream-WLED references |
 | `reference/wire-protocol.md` | `RaceLink_Host/docs/PROTOCOL.md` | Verbatim |
 | `RaceLink_Host/ui-conventions.md` | `RaceLink_Host/docs/UI_CONVENTIONS.md` | Verbatim |
