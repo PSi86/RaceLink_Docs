@@ -121,7 +121,7 @@ and the full per-opcode rules in
 > "All WLED Nodes". The string was renamed for accuracy on
 > mixed-capability fleets (broadcast packets are accepted by
 > every device class, not WLED only — capability-aware addressing
-> is on the [Roadmap](../roadmap.md#capability-agnostic-broadcast-addressing)).
+> is on the [Roadmap](../roadmap.md#capability-aware-broadcast-addressing)).
 > Existing backup files keep loading; the loader recognises both
 > names during the transition.
 

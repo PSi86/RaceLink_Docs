@@ -143,6 +143,7 @@ nav:
       - Standalone install (Windows + Linux): RaceLink_Host/standalone-install.md
       - Gateway operator setup: RaceLink_Gateway/operator-setup.md
       - WLED node operator setup: RaceLink_WLED/operator-setup.md
+      - WLED master pairing & MAC filter: RaceLink_WLED/master-pairing.md
       - WLED Headless Mode: RaceLink_WLED/headless-mode.md
       - WLED Indicators: RaceLink_WLED/indicators.md
       - WLED node pin configuration: RaceLink_WLED/pin-config.md
@@ -172,6 +173,7 @@ nav:
       - Host internals:
           - Reply matching (PendingMatcher): RaceLink_Host/reply-matching.md
       - Component internals:
+          - Gateway opcode forwarding: RaceLink_Gateway/opcode-forwarding.md
           - WLED radio modules: RaceLink_WLED/radio-modules.md
           - RH plugin — manifest dependency format: RaceLink_RH_Plugin/manifest-dependency-format.md
           - RH plugin — ADR-0001 manifest dependency: RaceLink_RH_Plugin/adr-0001-manifest-dependency.md

@@ -109,6 +109,12 @@ groupId back to the network. This is the recovery action when
 nodes have been reflashed or moved between gateways and their
 in-radio state has drifted from the host's view of them.
 
+**Get Status (all)** on a multi-gateway setup polls every
+attached gateway in parallel — each gateway gets its own status
+broadcast and reply window at the same time, so the refresh takes
+about as long as a single gateway's poll rather than the sum
+across gateways.
+
 #### Move groups to a different network
 
 When you run multiple gateways and one or more groups ended up on
@@ -155,6 +161,45 @@ members surface in Channel Scan with their now-known-good
 The dialog stays open after a successful move so you can pick
 the next batch without re-opening — handy when reorganising
 several groups across networks in one sitting.
+
+Each online device in the move briefly reboots (~5 s offline)
+onto the target network's radio settings and then re-binds to
+the target gateway on its own — no manual *Forget master MAC*
+step is needed. See
+[WLED master pairing](../RaceLink_WLED/master-pairing.md) for why
+the re-pair is automatic.
+
+#### Pair Assistant — devices that won't auto-pair
+
+When pre-existing devices don't pair after a gateway change, open
+the **Pair Assistant** (the `⚠ Pair…` header button, the reconnect
+banner, or the host-settings menu). It walks you through four
+recovery cases — pick the one that matches your situation:
+
+* **A — Devices are RF-compatible, just need re-pairing.** The
+  devices already share the current gateway's radio settings but
+  no auto-pair happened. Runs a discovery + group-assignment sweep
+  that re-binds every known device to this gateway. No radio
+  settings are entered.
+* **B — Devices on old settings, migrate to new.** The gateway
+  briefly switches to the *old* settings, discovers the devices,
+  pushes the *new* settings per device, then persists the new
+  settings on the gateway. You choose both the old and the new
+  settings as a **Region + Channel** from the shipped channel table
+  (see [Region & Channels](../reference/channels.md)) — the same
+  picker the Network Manager uses, no raw frequency / spreading
+  factor / bandwidth fields.
+* **C — Bring the gateway to the devices' settings.** You don't want
+  to touch the devices; the gateway adopts the devices' radio
+  settings and reboots, then natural re-discovery follows. Pick the
+  device-side **Region + Channel**.
+* **D — Device settings unknown.** Recovery hints only — recover the
+  old settings from a backup and use case B, or factory-reset the
+  affected devices via the boot-counter recovery path.
+
+For B and C the dialog pre-selects the channel that matches the
+gateway's current settings, so the common "align to what the
+gateway already has" case is one click.
 
 ### 4. Configure devices (optional)
 
@@ -475,7 +520,9 @@ makes the target device drop its bond with the current gateway.
 The next time you discover, the device will reply (it's
 listening for any broadcast) and pair to whichever gateway sent
 the discovery. Useful when migrating devices between gateways;
-gratuitously confusing if you click it during a race.
+gratuitously confusing if you click it during a race. See
+[WLED master pairing](../RaceLink_WLED/master-pairing.md) for the
+full pairing / persistence model.
 
 ## Common things that go wrong
 

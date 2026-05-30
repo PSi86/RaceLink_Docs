@@ -505,7 +505,14 @@ gets re-configured:
   body, persists to NVS, ACKs (`ACK_OK` or `ACK_BAD_*`), then
   reboots ~50 ms later onto the new settings. The reboot drops
   the link by design — the operator-facing outcome is the ACK,
-  not a post-reboot heartbeat.
+  not a post-reboot heartbeat. Applying a new RF config also moves
+  the node to a different radio network, so before rebooting the
+  node **disables master persistence**: it comes back up open to
+  pairing and re-binds to whichever gateway owns the destination
+  network. The stored master slot is left intact. See
+  [WLED master pairing](../RaceLink_WLED/master-pairing.md).
+  Note the gateway only forwards this opcode if it has a forwarder
+  case — see [Gateway opcode forwarding](../RaceLink_Gateway/opcode-forwarding.md).
 * **`GW_CMD_SET_RF_CONFIG`** — USB-CDC, host → gateway. The
   gateway either live-reconfigures (`persist=false`) or writes
   NVS + reboots (`persist=true`). Emits `EV_RF_CHANGED` ~100 ms

@@ -14,7 +14,73 @@ release is grouped into **Added** / **Changed** / **Fixed** /
 > in the maintainer-internal engineering ledger and never reaches
 > this file.
 
-## Unreleased — BroadcastTarget + scene-derived sync scope
+## 2026-05-27 — Network-move end-to-end + parallel multi-gateway status
+
+The per-group network move shipped its UI in the previous release, but
+several layers had to line up before a move actually relocated a node.
+This release closes those gaps so moving a group to another network
+works without any manual master-clear or Channel-Scan, and makes the
+multi-gateway status poll fast.
+
+### Fixed
+
+* **Moving a group to another network now completes end-to-end.** From
+  the operator's side: after the move the node briefly reboots (~5 s
+  offline), comes up on the target network's radio settings, and
+  re-binds to the target gateway on its own — no manual re-pair. Under
+  the hood three layers were fixed: the gateway firmware now forwards
+  the RF-config opcodes it previously dropped silently; the WLED node
+  clears its master persistence on an RF change so it accepts the new
+  gateway; and the host marks the device offline during the reboot and
+  routes the follow-up group assignment through the target gateway
+  instead of the old one. See
+  [WLED master pairing](RaceLink_WLED/master-pairing.md).
+* **Node config / stream / RF read-back reach the right gateway.** On a
+  multi-gateway setup, per-device actions like *WLAN AP open* (Node
+  Config), preset streaming, and the RF read-back used by the
+  Setup-Change-Assistant were always sent through the first gateway and
+  timed out for any device on a second gateway. They now route to the
+  gateway that owns the device's network.
+* **A moved node is no longer shown online by mistake.** A status reply
+  arriving via a gateway that doesn't own the device's network no
+  longer flips the device to "online" — the operator sees the true
+  state during a migration instead of a misleading green dot.
+* **Scene network scope is honored on a draft Run.** Running an
+  unsaved scene from the editor now respects the scene's network scope.
+  Previously the draft Run fell back to auto-mode and a broadcast
+  action could reach every network even when the scope pinned one.
+
+### Changed
+
+* **`Get Status (all)` polls every gateway in parallel.** Each gateway
+  is queried on its own with an independent reply collector, so the
+  wall-clock cost is bounded by the slowest single gateway's reply
+  window rather than the sum across gateways. The result is identical,
+  just faster, and a device on a second gateway no longer needs a
+  per-device retry pass.
+* **Pair Assistant uses the region + channel picker.** The "migrate to
+  new settings" (B) and "align gateway to devices" (C) flows now pick a
+  **Region** and **Channel** from the shipped channel table — the same
+  picker the Network Manager uses — instead of raw frequency / spreading
+  factor / bandwidth number fields. See
+  [Region & Channels](reference/channels.md).
+* **Scene editor footer is pinned.** The cost-estimator **Total** badge
+  and the Delete / Duplicate / Save / Run buttons stay fixed at the
+  bottom of the editor, so they're reachable without scrolling past a
+  long action list. The Pair Assistant dialog is also wider so the
+  region + channel dropdowns fit without a horizontal scrollbar.
+
+### Wire protocol
+
+Unchanged. `OPC_RF_CONFIG` carries the same 12-byte body; its node-side
+behaviour was extended to also clear master persistence before the
+reboot (see
+[Wire protocol — RF configuration](reference/wire-protocol.md) and
+[WLED master pairing](RaceLink_WLED/master-pairing.md)).
+
+---
+
+## 2026-05-27 — BroadcastTarget + scene-derived sync scope
 
 ### Changed
 
@@ -69,7 +135,7 @@ Unchanged.
 
 ---
 
-## Unreleased — Per-group network migration + unified Manage-groups dialog
+## 2026-05-27 — Per-group network migration + unified Manage-groups dialog
 
 A group ended up on the wrong network and the operator had no UI
 path to fix it — the bulk-regroup endpoint actively refused

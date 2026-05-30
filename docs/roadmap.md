@@ -1,149 +1,575 @@
 # RaceLink Roadmap
 
-Planned but not-yet-implemented features that the documentation
-already cross-references. Each entry is a stable anchor that
-contributors and operators can link to when describing why a
-current rule exists or where the system is heading.
+This roadmap describes the intended direction of RaceLink.
 
-Entries are added when an architectural rule is locked in but
-its implementation is deferred. Removing an entry implies the
-feature has shipped and the surrounding docs have caught up.
+It is not a complete issue tracker and it is not a promise that every listed item will be implemented in the exact order shown. Its purpose is to keep the architectural direction clear: RaceLink should remain a lightweight, robust race/event control system with LoRa-connected devices, while exposing clean interfaces so that operators can use established lighting and show-control software when their needs exceed the built-in WebUI.
 
-## Capability-agnostic broadcast addressing
+## Project direction
 
-**Status.** Planned. No implementation date.
+RaceLink should be usable on its own, but it should not try to replace professional lighting software.
 
-**Motivation.** RaceLink today filters broadcast packets only
-by `groupId` (see [Broadcast
-Ruleset](reference/broadcast-ruleset.md)). A
-`recv3 = FF FF FF, groupId = 255` packet is accepted by every
-device regardless of its capability — there is no way to
-broadcast to "WLED nodes only" or "Startblock nodes only".
+The built-in RaceLink WebUI should focus on what RaceLink itself must own:
 
-The Host's UI currently sidesteps this by labelling the
-broadcast option "All Devices (Broadcast)" — capability-neutral
-and honest. The RotorHazard plugin offered an "All WLED Nodes"
-label, which was technically misleading on a fleet that mixes
-device classes.
+- gateway discovery and status
+- LoRa network and device management
+- group assignment
+- node configuration and maintenance
+- basic scene authoring and triggering
+- race-event integration
+- startblock and custom-node control
+- diagnostics and firmware/update workflows
 
-**Proposed change.** Add a capability-filter byte to the wire
-header (or repurpose reserved bits in an existing field; the
-exact placement is a wire-design decision) so the Host can
-emit:
+External tools should be used for workflows that established lighting and show-control applications already handle better:
 
+- complex cue lists
+- timelines
+- live fader operation
+- MIDI/OSC control surfaces
+- fixture libraries
+- professional Art-Net/sACN/DMX show operation
+- media/show-control workflows that can be reduced to coarse RaceLink actions
+
+Important constraint: RaceLink is not a real-time transport for high-bandwidth show data. Upstream tools may run pixel mapping, beat analysis, audio-reactive control, or timeline playback, but RaceLink should receive only the resulting high-level actions — see the "Mapping, not streaming" principle below.
+
+RaceLink should therefore become easy to control from external software, instead of growing the WebUI into a full lighting desk.
+
+## Architectural principles
+
+### 1. Host-first integrations
+
+External software integrations should primarily live in `RaceLink_Host`.
+
+The Host already owns the WebUI, API surface, scene execution, group/device model, repository state, and gateway routing. Protocols such as HTTP, WebSocket/SSE, OSC, MQTT, Art-Net, sACN, and OLA belong at this layer.
+
+Gateway firmware should stay focused on deterministic USB-to-LoRa operation unless a hardware interface provides clear value that cannot reasonably be achieved at the Host layer.
+
+### 2. Action model before adapters
+
+All control paths should converge on a single internal action model.
+
+The WebUI, RotorHazard plugin, and external adapters should call the same internal actions instead of duplicating command logic.
+
+Example action vocabulary:
+
+- `scene.start(scene_id)`
+- `scene.stop(scene_id)`
+- `group.set_rl_preset(group_id, preset_id)`
+- `group.set_wled_preset(group_id, preset_slot)`
+- `group.set_brightness(group_id, value)`
+- `group.set_effect(group_id, effect_id, speed, intensity)`
+- `group.blackout(group_id)`
+- `node.identify(node_id)`
+- `startblock.arm(block_id)`
+- `startblock.trigger(block_id)`
+- `sync.send(scope)`
+- `system.blackout()`
+
+This makes integrations predictable and keeps the WebUI from becoming the only supported control path.
+
+### 3. Mapping, not streaming
+
+RaceLink should not attempt to transport continuous DMX, Art-Net, sACN, DDP, pixel, or audio-reactive control frames over LoRa.
+
+LoRa is suitable for compact, event-oriented commands:
+
+- scene triggers
+- preset changes
+- group commands
+- sync events
+- status and replies
+- startblock commands
+- custom-node actions
+
+It is not suitable for frame-by-frame DMX universes, high-rate pixel streaming, or continuous beat/audio-reactive parameter streams.
+
+Art-Net/sACN input should therefore be treated as a control mapping layer: external software changes selected channels, and the Host translates meaningful changes into RaceLink actions.
+
+A professional show-control tool may still be used for timelines, cue lists, media control, or beat-synchronized show logic. The important boundary is that RaceLink receives only the resulting high-level command, not the underlying real-time stream.
+
+### 4. External control must be explicit and observable
+
+Operators must be able to see when RaceLink is controlled externally.
+
+External-control features should include:
+
+- global enable/disable switch
+- per-adapter enable/disable switch
+- visible status of active external control
+- last external command log
+- rate-limit and rejection diagnostics
+- clear ownership/priority rules
+- emergency blackout path
+
+### 5. Avoid unnecessary WebUI growth
+
+The RaceLink WebUI may expose small configuration surfaces for integrations, but should not implement full show-control features.
+
+Allowed WebUI scope:
+
+- API settings
+- adapter enable/disable state
+- Art-Net/sACN universe and mapping setup
+- OSC endpoint overview
+- MQTT broker/topic configuration
+- external-control status and debug log
+- ownership/priority configuration
+
+Out of scope for the RaceLink WebUI:
+
+- full lighting desk functionality
+- fixture library management
+- large DMX patchbay management
+- professional cue-stack editing
+- timeline authoring for complex shows
+- real-time pixel mapping
+- beat-grid or audio-analysis tools
+- complex MIDI control-surface designer
+
+These workflows can remain in external tools. RaceLink should expose clean interfaces so those tools can trigger RaceLink actions where appropriate.
+
+## Roadmap overview
+
+| Stage | Theme | Main outcome |
+| --- | --- | --- |
+| Now | Core control API | RaceLink has a stable action model and documented external API. |
+| Next | External input adapters | Professional tools can control RaceLink without using the WebUI. |
+| Next | WebUI scope control | WebUI stays focused on RaceLink-specific operation and integration setup. |
+| Later | Output adapters | RaceLink can trigger standard lighting systems when useful. |
+| Later | Optional hardware extensions | Additional hardware interfaces are added only where Host-side adapters are insufficient. |
+
+---
+
+## Stage 1 — Stable internal action model and public API
+
+Status: Planned  
+Primary repository: `RaceLink_Host`
+
+### Goal
+
+Create a stable control foundation that all internal and external clients can use.
+
+The RaceLink WebUI, RotorHazard plugin, and external adapters should call the same internal actions and receive consistent results.
+
+### Work items
+
+- Define the internal RaceLink action model.
+- Ensure scene execution, group control, node actions, startblock commands, sync commands, and blackout commands are available through this model.
+- Align the WebUI command path with the same action dispatcher used by external APIs.
+- Provide a documented REST API for command-style interaction.
+- Provide a documented live event/status stream via WebSocket or the existing SSE infrastructure.
+- Add clear command result objects:
+  - accepted
+  - rejected
+  - queued
+  - sent
+  - timed out
+  - failed
+- Add a basic external-command log for diagnostics.
+- Add rate limiting at the action-dispatch layer, not separately inside each adapter.
+- Add an explicit external-control enable/disable setting.
+
+### Acceptance criteria
+
+- A scene can be started through the WebUI, RotorHazard plugin, and REST API with the same execution behavior.
+- Device/group/status information can be consumed by an external client without scraping the WebUI.
+- Failed or rejected commands produce structured errors.
+- External commands are visible in diagnostics.
+- The public API is documented in the RaceLink docs.
+
+---
+
+## Stage 2 — External input adapters
+
+Status: Planned  
+Primary repository: `RaceLink_Host`
+
+### Goal
+
+Allow established lighting and show-control software to control RaceLink without requiring operators to use the RaceLink WebUI for advanced show operation.
+
+RaceLink should behave like a controllable backend for LoRa-connected race/event devices.
+
+### 2.1 OSC input adapter
+
+OSC should be the first semantic show-control adapter after the core API is stable.
+
+#### Why OSC
+
+OSC maps naturally to RaceLink actions and is common in show-control environments, media-control workflows, custom controllers, and integration tools.
+
+Example address model:
+
+```text
+/racelink/scene/start 5
+/racelink/group/2/preset 12
+/racelink/group/1/brightness 180
+/racelink/sync/send
+/racelink/startblock/arm 3
+/racelink/system/blackout
 ```
-recv3   = FF FF FF
-groupId = 255
-cap     = WLED          ← new field
+
+#### Work items
+
+- Add OSC listener configuration.
+- Map OSC addresses to internal RaceLink actions.
+- Document the supported OSC address space.
+- Add adapter-level enable/disable state.
+- Add rate limiting and diagnostics through the shared action layer.
+- Add optional source filtering if needed.
+
+#### Acceptance criteria
+
+- An external OSC tool can trigger scenes, group presets, sync, startblock actions, and blackout.
+- OSC commands appear in the external-command log.
+- The WebUI does not need new show-operation screens for OSC workflows.
+
+### 2.2 Art-Net/sACN input adapter as a virtual RaceLink fixture
+
+Art-Net and sACN input should be implemented as a mapping layer, not as a LoRa transport for DMX frames.
+
+#### Goal
+
+Allow lighting software and lighting consoles to control RaceLink using a small number of channels.
+
+Example virtual fixture layout:
+
+| Channel | Meaning |
+| ---: | --- |
+| 1 | Scene ID |
+| 2 | Scene trigger |
+| 3 | Group ID |
+| 4 | Brightness |
+| 5 | RL preset ID |
+| 6 | WLED preset slot |
+| 7 | Effect ID |
+| 8 | Effect speed |
+| 9 | Effect intensity |
+| 10 | Palette / color mode |
+| 11 | Sync trigger |
+| 12 | Blackout trigger |
+
+The exact channel model should be versioned and documented.
+
+#### Required behavior
+
+- Detect meaningful changes instead of forwarding every frame.
+- Treat trigger channels as edge-triggered where appropriate.
+- Apply rate limits before sending LoRa commands.
+- Allow per-universe and per-address configuration.
+- Expose the active mapping in the WebUI.
+- Keep mapping simple enough that RaceLink does not become a fixture-library manager.
+- Prefer scene/preset/cue triggers over continuously changing values.
+
+#### Non-goals
+
+Same boundaries as the "Mapping, not streaming" principle: no frame-by-frame DMX/pixel/audio streaming over LoRa, no DMX fixture patchbay, and no attempt to emulate a lighting desk inside RaceLink.
+
+#### Acceptance criteria
+
+- A lighting application can trigger RaceLink scenes through Art-Net or sACN.
+- Channel changes can map to RaceLink group actions.
+- Continuous Art-Net/sACN input does not flood the LoRa network.
+- Operators can see which universe/mapping is active.
+- The mapping is documented as a virtual RaceLink fixture.
+
+### 2.3 MQTT / Home Assistant adapter
+
+MQTT is useful for automation and status integration, but should not be treated as the primary live show-control path.
+
+#### Intended use
+
+- Home Assistant integration
+- Node-RED workflows
+- automation dashboards
+- status publishing
+- simple command topics
+
+Example topic model:
+
+```text
+racelink/status/gateway
+racelink/status/devices
+racelink/status/groups
+racelink/event/race/start
+racelink/event/race/finish
+racelink/cmd/scene/start
+racelink/cmd/group/1/preset
+racelink/cmd/sync
+racelink/cmd/system/blackout
 ```
 
-…and have only WLED-capable devices accept the packet. Other
-device classes pass Stage 1 (recv3 broadcast) but reject in
-Stage 2 (capability mismatch).
+#### Acceptance criteria
 
-**Scope.** Touches:
+- RaceLink can publish gateway, device, group, and event status.
+- RaceLink can accept selected command topics.
+- MQTT behavior is documented as automation-oriented, not low-latency show streaming.
 
-* `OPC_PRESET`, `OPC_CONTROL`, `OPC_OFFSET` — the workhorse
-  scene-playback opcodes.
-* Possibly `OPC_CONFIG` once register namespaces are
-  cap-scoped (today the firmware drops broadcast `OPC_CONFIG`
-  outright — see the Designed-in special cases section of the
-  Broadcast Ruleset).
-* Wire spec (`racelink_proto.h`), Host emission, Gateway
-  forwarder (already transparent — likely no change), WLED
-  firmware acceptance, Host UI labels.
+---
 
-**Unlocks.**
+## Stage 3 — Keep the WebUI focused
 
-* Honest capability-aware UI labels ("All WLED Nodes",
-  "All Startblock Nodes") that match the wire reality.
-* Single-packet broadcasts for cap-scoped commands that today
-  must fan out per-device or per-group.
+Status: Planned  
+Primary repository: `RaceLink_Host`
 
-## Group-agnostic re-identification
+### Goal
 
-**Status.** Planned. No implementation date.
+Prevent the RaceLink WebUI from becoming a replacement for professional lighting tools.
 
-**Motivation.** `OPC_DEVICES` discovery defaults to
-`groupId = 0` and reaches devices in the Unconfigured group
-(see the Designed-in special cases section of the [Broadcast
-Ruleset](reference/broadcast-ruleset.md)). To re-poll a known
-fleet on a non-zero group the operator can pick a specific
-group from the Discovery panel — a choice plumbed through to
-the wire.
+The WebUI should provide the necessary setup, monitoring, and fallback operation, while advanced live operation can move to external tools.
 
-That works for the case "the Host knows which group the device
-is in". It does not solve "the device's stored `groupId` has
-drifted from the Host's repository, and the Host needs to find
-out". Today's only path is one `OPC_DEVICES` per known group
-(254 packets in the worst case) or a manual operator
-intervention.
+### Work items
 
-**Proposed change.** Add a discovery mode that bypasses the
-Stage-2 `groupMatch`. Three candidate mechanisms:
+- Create a compact "External Control" page or section.
+- Show enabled adapters and their status.
+- Show last external commands and rejected commands.
+- Configure API tokens or local-network access policy if needed.
+- Configure Art-Net/sACN mapping.
+- Configure OSC listener settings.
+- Configure MQTT broker/topics.
+- Configure ownership/priority rules.
+- Add import/export for adapter mappings if useful.
 
-* A **dedicated bypass opcode** parallel to `OPC_DEVICES`.
-* A **flag bit** in `OPC_DEVICES` ("ignore groupId, reply
-  anyway").
-* The **capability byte** from
-  [Capability-agnostic broadcast
-  addressing](#capability-agnostic-broadcast-addressing) — a
-  zero-cap value would mean "any capability, any group".
+### Explicit non-goals
 
-Pick at implementation time.
+The WebUI should not grow into a full lighting desk, fixture-library manager, DMX patchbay, timeline/cue-stack editor, pixel mapper, beat/audio-analysis tool, or MIDI control-surface designer — the full list lives under "Avoid unnecessary WebUI growth". External tools may provide these features; the RaceLink integration stays event-oriented.
 
-**Scope.** Touches `OPC_DEVICES` (or a new opcode) on the wire,
-firmware acceptance logic, Host discovery service, and the
-Discovery panel UI.
+---
 
-**Unlocks.**
+## Stage 4 — Ownership, priorities, and safety
 
-* Single-packet "re-identify the whole fleet regardless of
-  group state".
-* A safer recovery path when device repository drift is
-  suspected.
+Status: Planned  
+Primary repository: `RaceLink_Host`
 
-## Capability function visibility taxonomy
+### Goal
 
-**Status.** Planned. Identified 2026-05-09 (deferred from the
-UI-cleanup iteration that day) and re-prioritised when the
-WLED-Preset-removal item below was scheduled for the next
-release. The visibility mechanism is the preferred
-implementation path for that removal and for any future
-"capability function ships in the wire layer but should not
-appear in every UI surface" use case.
+Make simultaneous control paths predictable.
 
-**Motivation.**
+RaceLink can be controlled by the WebUI, RotorHazard, REST, OSC, Art-Net/sACN, MQTT, and possibly automation systems. Without explicit ownership rules, these sources can fight each other.
 
-Today the `RL_SPECIALS[<cap>]["functions"]` schema in
-`racelink/domain/specials.py` is consumed uniformly: the
-Device Options dialog renders **every** entry as an
-``Action`` row in the cap's tab; the Scene Editor's action
-picker renders a **separately maintained** hardcoded list of
-``KIND_*`` constants. There is no single source of truth that
-expresses *where* a capability function should be visible,
-and no way to register a function that is meant to be reached
-only by other code paths (e.g. a scene-runner step that
-consumes it via the ``comm`` method, but which should not
-appear as an operator-clickable button).
+### Proposed priority model
 
-Two concrete problems that the lack of this mechanism creates:
+Initial priority order:
 
-1. **WLED Preset is exposed in the dialog despite being
-   problematic** — the removal item below has been blocked
-   on "we'd like to keep `sendWledPreset` reachable from
-   scenes but not from the dialog". Today the only way to
-   hide it from the dialog is to delete the schema entry
-   entirely, which also breaks any service-layer caller.
-2. **The Scene Editor's action picker drifts from the
-   capability schema** — adding a new device cap function
-   today requires touching `RL_SPECIALS` (for the dialog) and
-   the editor's `SceneActionKind` list (for the scene
-   picker). The two surfaces are kept in sync by hand.
+| Priority | Source |
+| ---: | --- |
+| 100 | Emergency / blackout |
+| 90 | Safety-critical system actions |
+| 80 | Race events / RotorHazard |
+| 70 | Explicit external live control |
+| 60 | WebUI manual operation |
+| 40 | Automation / MQTT |
+| 20 | Passive status/reporting |
 
-**Proposed change.**
+### Work items
 
-Add an optional `visibility` field per function entry:
+- Add source identity to every action.
+- Add priority to every action.
+- Add per-group or global ownership state.
+- Add timeout for external live control.
+- Add "Take over from external control" action in the WebUI.
+- Make emergency blackout always available.
+- Log rejected actions with a reason.
+
+### Acceptance criteria
+
+- Operators can understand why a command was accepted or rejected.
+- External live control can time out cleanly.
+- RotorHazard race events cannot be accidentally overridden by low-priority automation.
+- Emergency blackout remains available from every supported control path.
+
+---
+
+## Stage 5 — Output adapters to standard lighting systems
+
+Status: Later  
+Primary repository: `RaceLink_Host`
+
+### Goal
+
+Allow RaceLink events to trigger standard lighting systems when RaceLink is used as the race/event orchestrator.
+
+This is the reverse direction of Stage 2: instead of external software controlling RaceLink, RaceLink can trigger external lighting.
+
+### 5.1 Art-Net/sACN output
+
+#### Intended use
+
+- Trigger simple DMX looks on race start/finish.
+- Send blackout to standard fixtures.
+- Control a small number of channels from RaceLink scenes.
+- Coordinate RaceLink LoRa nodes with wired or networked lighting fixtures.
+
+#### Non-goals
+
+- RaceLink should not become a full Art-Net/sACN lighting engine.
+- RaceLink should not manage large fixture libraries.
+- RaceLink should not replace existing lighting-control applications.
+
+### 5.2 OLA / USB-DMX backend
+
+OLA is a good candidate for hardware DMX support because it can abstract different DMX interfaces and protocols outside RaceLink.
+
+#### Intended architecture
+
+```text
+RaceLink_Host
+    ↓
+OLA daemon
+    ↓
+USB-DMX / Art-Net / sACN / other OLA-supported backends
+```
+
+#### Benefit
+
+RaceLink can trigger DMX without directly supporting every USB-DMX adapter.
+
+### 5.3 WLED JSON output
+
+RaceLink may optionally control normal IP-based WLED devices in addition to LoRa-connected RaceLink WLED nodes.
+
+#### Intended use
+
+- Mixed setups with RaceLink LoRa nodes and existing Wi-Fi WLED devices.
+- Simple scene/preset coordination.
+- Non-critical decorative lighting.
+
+#### Constraint
+
+A single WLED device should not be controlled by LoRa RaceLink commands and WLED JSON realtime commands at the same time unless ownership rules make the behavior explicit.
+
+---
+
+## Stage 6 — Optional hardware extensions
+
+Status: Later  
+Primary repositories: `RaceLink_Gateway`, future node repositories
+
+Hardware extensions should only be added when Host-side integrations are not enough.
+
+### 6.1 Gateway with DMX output
+
+A Gateway variant with DMX output is technically possible, but should not be the first integration path.
+
+#### Potential benefit
+
+- One physical RaceLink box can output LoRa and DMX.
+- Simple race-triggered DMX looks can be generated without a separate USB-DMX interface.
+
+#### Risks
+
+- Gateway firmware becomes more complex.
+- DMX requires continuous frame generation.
+- Hardware needs proper RS-485 design, ESD protection, connector choice, and ideally galvanic isolation.
+- The gateway's primary USB-to-LoRa reliability must not be compromised.
+
+#### Decision rule
+
+Build this only if Host + OLA/USB-DMX proves insufficient for real deployments.
+
+### 6.2 RaceLink DMX Node
+
+A separate LoRa-controlled DMX node may be more useful than adding DMX to the gateway.
+
+#### Intended use
+
+```text
+RaceLink_Host → USB Gateway → LoRa → RaceLink_DMX_Node → DMX fixtures
+```
+
+#### Constraint
+
+The node should execute local DMX cues or simple DMX looks. It should not receive continuous DMX universes over LoRa.
+
+Good use cases:
+
+- blackout
+- fixed color scene
+- dimmer level
+- strobe on/off
+- fixture macro
+- locally stored cue
+
+Bad use cases: full wireless DMX universes, high-rate pixel streaming, Art-Net/sACN tunneling, or continuous audio-reactive control over LoRa — see "Mapping, not streaming".
+
+### 6.3 RaceLink IO Node
+
+A generic IO node may be more broadly useful than DMX-specific hardware.
+
+Possible functions:
+
+- physical buttons
+- relay outputs
+- start triggers
+- gate inputs
+- sensor inputs
+- status lamps
+- auxiliary outputs for race equipment
+
+This node type fits RaceLink's event-oriented architecture well.
+
+### 6.4 Hardware paths to avoid initially
+
+The following are technically possible but not recommended as early roadmap items:
+
+- DMX input directly on the Gateway
+- Art-Net/sACN over Wi-Fi directly on the Gateway
+- making the Gateway a general lighting network bridge
+
+(Tunneling DMX/pixel/beat-reactive frames over LoRa is already excluded by the "Mapping, not streaming" principle.) These paths move mapping, ownership, network configuration, and UI complexity into firmware where the Host is a better fit.
+
+---
+
+## Documentation roadmap
+
+Every integration feature should ship with documentation at the same time as the implementation.
+
+Required docs:
+
+- external-control overview
+- action model reference
+- REST API reference
+- event stream reference
+- OSC address reference
+- Art-Net/sACN virtual fixture mapping
+- MQTT topic reference
+- ownership/priority model
+- troubleshooting guide for external control
+- security/networking notes for local API exposure
+
+---
+
+## Compatibility and versioning
+
+External-control interfaces must be versioned carefully.
+
+Guidelines:
+
+- Keep the action model stable once published.
+- Version the Art-Net/sACN virtual fixture layout.
+- Document breaking changes before release.
+- Prefer additive API changes.
+- Keep deprecated endpoints available for at least one documented transition period where feasible.
+- Avoid exposing internal Python implementation details as public API contracts.
+
+---
+
+## Deferred engineering backlog
+
+The following items were previously listed as the main roadmap. They are still useful engineering ideas, but they are not the primary product roadmap.
+
+They should be promoted back into an active stage only when they directly support the integration-first direction described above.
+
+### Capability-aware broadcast addressing
+
+Status: Deferred. Broadcast today is group-based only; a future wire-level capability filter could target "WLED nodes only" or "Startblock nodes only", making broadcast labels and behaviour more precise in mixed fleets. **Decision:** keep deferred until mixed-capability fleets justify a wire-protocol change.
+
+### Group-agnostic re-identification
+
+Status: Deferred. A discovery mode that identifies devices regardless of their stored group ID would ease recovery when device and Host repository state drift apart. **Decision:** keep deferred unless field usage shows group drift is a common operator problem.
+
+### Capability function visibility taxonomy
+
+Status: Deferred. Capability functions could carry visibility metadata so a function appears in one UI/API surface but not another:
 
 ```python
 {
@@ -155,306 +581,31 @@ Add an optional `visibility` field per function entry:
 }
 ```
 
-Field semantics:
+This avoids WebUI clutter while keeping programmatic functions available to scenes or external APIs. **Decision:** the most roadmap-aligned backlog item — reconsider during Stage 1 or Stage 3 if the action model and external API need the same metadata.
 
-* **List of UI surface tokens.** A function appears on a
-  surface only if the surface's token is in the list.
-* **Omitted = visible everywhere** (backwards-compatible
-  default; existing entries don't need touching).
-* **Empty list `[]`** = "internal only", never rendered in any
-  UI surface; reachable only by code-path callers.
-* **Initial token vocabulary**:
-  - ``"device-options-dialog"`` — the Specials dialog action
-    row (`SpecialsDialog.vue`).
-  - ``"scene-editor"`` — the Scene Editor action picker.
-* New tokens are added when a new UI surface starts consuming
-  the capability schema. Unknown tokens are ignored by
-  consumers (forwards-compatible additions).
+### Hide "WLED Preset" from the Device Options dialog
 
-**Scope.**
+Status: Deferred. The dialog exposes WLED preset behaviour in a way that can conflict with RaceLink presets and segment/default assumptions — a WebUI-scope cleanup. **Decision:** implement together with the capability visibility mechanism above rather than as a one-off UI deletion.
 
-* `racelink/domain/specials.py` — add `visibility` field type
-  + validation in the schema constructor; default `None` →
-  treated as "everywhere".
-* `racelink/services/specials_service.py` — `get_serialized_config()`
-  passes the field through unchanged.
-* `frontend/src/api/types.ts` — extend `SpecialFunctionMeta`
-  with `visibility?: string[]`.
-* `frontend/src/components/modals/SpecialsDialog.vue` — filter
-  the rendered action rows: include only entries whose
-  ``visibility`` is omitted OR contains ``"device-options-dialog"``.
-* `frontend/src/components/scenes/...` — where the editor's
-  action-kind picker lives, apply the same filter against the
-  ``"scene-editor"`` token. (Long-term: replace the hardcoded
-  `SceneActionKind` constant list with the schema-derived
-  list. That's a bigger refactor; this entry's first delivery
-  only adds the filter.)
-* `RaceLink_Docs/docs/RaceLink_Host/architecture.md` — document
-  the visibility contract under the existing "Specials schema"
-  section. Token vocabulary lives next to the schema docs so
-  contributors discover it when adding a new function.
+### Lean down the headless scene-execution path
 
-**Unlocks.**
+Status: Deferred. Some scene-execution work runs even when no browser/SSE client is connected; avoiding it would slightly reduce overhead on headless race paths and improve code cleanliness. **Decision:** keep deferred — the operator-visible gain is small compared to integration and API work.
 
-* WLED-Preset-removal-from-dialog (next entry) lands as a
-  one-line schema change instead of a multi-file deletion.
-* Future device caps (e.g. a debug-only "Reboot at next
-  packet" function) can ship without polluting every UI.
-* A future "expose capability functions to RotorHazard
-  effect-mapping" feature gets a clean way to mark which ones
-  RH should pick up, distinct from operator-facing UI.
-* The "scene editor uses a hardcoded list" code-smell becomes
-  fixable in a follow-up that's strictly smaller than today
-  (the visibility filter is the prerequisite).
+### Asynchronous / pipelined gateway TX
 
-**Risks.**
+Status: Deferred. The gateway serializes transmission, leaving per-packet overhead; a non-blocking transmit path with a small queue could improve multi-packet scene wall-clock time. **Decision:** keep deferred until a measurable need appears — valuable, but should not block the external-control roadmap.
 
-* Mis-tagging during the migration: silently making a function
-  invisible everywhere by setting `"visibility": []` when
-  ``["scene-editor"]`` was meant. Mitigation: add a unit test
-  that asserts at least one function exists for each surface
-  token after the schema is loaded (regression guard).
-* Adding a third UI surface later means touching every filter
-  site to add the token. Mitigation: extract a single helper
-  ``isVisibleOn(fn, "scene-editor")`` so the surface-token
-  comparison is centralised.
+---
 
-## Remove "WLED Preset" action from the Device Options dialog
+## Non-goals
 
-**Status.** Planned. Triggered 2026-05-08 after the iteration-8
-RL-preset tracking fix exposed the long-standing operator UX
-problem.
+The following are intentionally not part of the current roadmap:
 
-**Note (2026-05-09).** The preferred implementation path is
-now the **Capability function visibility taxonomy** above
-rather than a wholesale deletion: tag `wled_preset` with
-`visibility: ["scene-editor"]` so it disappears from the
-dialog but stays available to scenes (and to any future
-caller of `sendWledPreset` / `send_device_preset`). This
-turns this entry from a deletion into a one-field schema
-edit, and lands the visibility mechanism as a
-forwards-compatible side-effect.
-
-**Why this is on the list.**
-
-The Device Options dialog's WLED-tab `functions` block currently
-exposes two preset paths side-by-side:
-
-* **WLED Preset** — applies a numeric WLED-preset slot
-  (`OPC_PRESET`, host's `send_wled_preset` →
-  `send_device_preset`). The preset content is whatever the
-  operator saved into the node's `presets.json` via WLED's own
-  web UI.
-* **RaceLink Preset** — applies a host-side RL preset
-  (`OPC_CONTROL` with the saved 14-field parameter snapshot,
-  host's `send_rl_preset_by_id`).
-
-Two problems:
-
-1. **Segment reconfiguration.** A WLED preset can carry segment
-   geometry that overrides whatever the host's "Segment 0/1
-   Geometry" rows or the "Reset to RaceLink defaults" action
-   established. Operators see segments silently rearrange after
-   applying a WLED preset, contradicting the host's stated
-   intent. The override layer (`OPC_CONFIG` 0x06/0x07) only
-   enforces geometry on boot via `applyRaceLinkDefaults` — a
-   live `OPC_PRESET` bypasses it.
-2. **`presetId` overload.** Both actions seed their dropdown
-   from `dev.presetId`. The host writes the WLED-preset slot
-   number from `send_device_preset` and the RL-preset stable id
-   from `send_rl_preset_by_id` into the same field. Whichever
-   was applied last wins; the *other* dropdown then renders
-   empty (RL-preset id rarely matches a WLED-preset slot and
-   vice versa). The iteration-8 fix made the RL-preset dropdown
-   correct at the cost of leaving the WLED-preset dropdown
-   empty after every RL apply — operator-visible churn.
-
-**Proposed change.** Tag the `wled_preset` entry with
-`visibility: ["scene-editor"]` (using the new mechanism in the
-preceding entry). Result: the function disappears from the
-Device Options dialog while staying registered in
-`RL_SPECIALS["WLED"]["functions"]` so the Scene Editor and
-any future programmatic caller of `sendWledPreset` /
-`send_device_preset` / `send_group_preset` can still reach it.
-RL Presets become the single preset-style surface in the
-dialog.
-
-**Scope.**
-
-* Schema: one-field edit in `racelink/domain/specials.py` —
-  `"visibility": ["scene-editor"]` on the `wled_preset` entry.
-  Depends on the visibility-taxonomy entry above shipping
-  first (or in the same release).
-* Frontend: `SpecialsDialog.vue` already filters by
-  `visibility` (per the new mechanism); no further change at
-  the dialog. The `SpecialsActionRow` row count for the WLED
-  tab drops from 3 to 2 automatically.
-* Backend: no service-layer change. `dev.presetId` becomes
-  unambiguously "last applied RL preset id" because the only
-  caller that writes WLED-preset slot numbers into it is the
-  dialog row — the scene-editor path stamps an RL-preset id
-  via `send_rl_preset_by_id` regardless.
-* Migration note for `RaceLink_Docs/RaceLink_WLED/operator-setup.md`:
-  operators who relied on WLED presets transcribe the preset's
-  effect parameters into a new RL preset via the RL Preset
-  editor. Document the parameter mapping (mode, speed, intensity,
-  custom1–3, palette, color1–3) — every WLED-preset field has an
-  RL-preset equivalent.
-
-**Unlocks.**
-
-* The "Effect" column and the RL-preset dropdown stop
-  contradicting each other.
-* The "Reset to RaceLink defaults" + segment-override flow
-  becomes authoritative — no other dialog action can silently
-  rearrange segments behind the operator's back.
-
-## Lean down the headless scene-execution path
-
-**Status.** Planned. Identified 2026-05-09 during the WTIME
-diagnostic session; quantified but not yet implemented because
-the gain is sub-millisecond per scene.
-
-**Motivation.** During a race event, scenes are triggered
-**without an open browser tab** — `controller.runScene(key)` is
-invoked directly by the RotorHazard plugin and `progress_cb`
-is `None`. The current Host code runs a small amount of work
-on every scene execution that only matters when at least one
-SSE client is connected. The work is not wrong, just wasted on
-the headless production path.
-
-Two concrete spots:
-
-1. **Per-action payload dict allocation in
-   [`scene_runner_service.py::run`](https://github.com/PSi86/RaceLink_Host/blob/main/racelink/services/scene_runner_service.py).**
-   `_emit_progress(progress_cb, {…})` builds a 4–6 key dict
-   *before* the helper checks `if progress_cb is None: return`.
-   With `progress_cb=None` (headless path) the dict is allocated
-   and discarded twice per action (start + terminal events).
-2. **Master-state snapshot copy in
-   [`web/sse.py::MasterState.set`](https://github.com/PSi86/RaceLink_Host/blob/main/racelink/web/sse.py).**
-   Every `EV_TX_DONE` / `EV_STATE_CHANGED` / reply event triggers
-   `master.set(last_event=…)` → `snapshot()` (`dict(self._state)`,
-   6–7 fields). The subsequent `_broadcast` already has an
-   `if not clients_snapshot: return` early-return, but the
-   snapshot dict is allocated *before* that check.
-
-**Proposed change.**
-
-* Helper-extract the runner's `_emit_progress` to construct the
-  payload only when `progress_cb is not None`. Two callsites,
-  one helper.
-* In `MasterState.set`, gate `self._broadcast(...)` on
-  `if self._clients:` so the snapshot allocation only runs when
-  at least one SSE client is connected.
-
-**Scope.** Host-only, no protocol or firmware change.
-
-* `racelink/services/scene_runner_service.py` — refactor the
-  two `_emit_progress(progress_cb, {…})` calls.
-* `racelink/web/sse.py` — gate the snapshot in `MasterState.set`.
-* `racelink/services/scene_cost_estimator.py` — once the
-  measurement above shifts the per-packet wire overhead by ≥
-  3 ms, recalibrate `WIRE_OVERHEAD_MS_PER_PACKET` from `12.0`
-  toward the new mean (2026-05-09 measurement: ~14 ms; below
-  the 3 ms recalibration threshold so it stays at 12.0 for now).
-
-**Unlocks.**
-
-* Sub-millisecond reduction in per-scene wall-clock for the
-  headless production path. **Not operator-visible** in any
-  practical race scenario — the entry exists to keep the
-  micro-optimisation discoverable so it isn't reinvented from
-  scratch later.
-* Cleaner separation between "what only the WebUI consumer
-  cares about" and "what the wire path needs unconditionally".
-
-**Reference.** Per-packet wall-clock decomposition and the
-2026-05-09 baseline measurement live in
-[Wire timing](reference/wire-timing.md). Open before re-measuring
-or before deciding whether to recalibrate
-`WIRE_OVERHEAD_MS_PER_PACKET`.
-
-## Asynchronous / pipelined gateway TX
-
-**Status.** Planned. Identified 2026-05-09 alongside the
-headless-path lean-down; the dominant lever for *measurable*
-per-packet wall-clock savings.
-
-**Motivation.** Per-packet wire overhead today is ~14 ms above
-pure LoRa airtime (see [Wire timing](reference/wire-timing.md)).
-Decomposed:
-
-* ~2 ms USB-CDC submission Host → Gateway
-* ~1 ms host-side RX-reader wakeup latency
-* **~11 ms Gateway-firmware:** `radio->standby()` + radio
-  mode-switch + RadioLib `radio->transmit()` setup + TX_DONE
-  interrupt + USB submission Gateway → Host
-
-The 11 ms gateway-side block is dominated by RadioLib's
-**blocking** `transmit()` call in
-[`scheduleSend / service`](https://github.com/PSi86/RaceLink_Gateway/blob/main/src/racelink_transport_core.h)
-(line ~648 at the time of writing): the call returns only after
-the LoRa TXDONE IRQ fires. The single-slot `txPending` design
-prevents pipelining — the host can have at most one frame in
-flight on the wire even though the gateway could already be
-preparing the next frame's modem state during the previous
-frame's airtime.
-
-**Proposed change.** Replace the blocking transmit with
-RadioLib's non-blocking `startTransmit() / DIO1 IRQ →
-finishTransmit()` pattern, and grow the TX scheduler to a small
-queue (e.g. 4 slots). The host can then submit the next frame
-before the previous one's TXDONE arrives; the gateway's
-mode-switch and modem-setup overlap with the prior frame's
-tail.
-
-This was already flagged as future work in the comment block at
-the top of `scheduleSend` ("Buffered burst tolerance: a small TX
-queue (e.g. 4 entries) inside `scheduleSend` would let the
-gateway absorb bursts during the LBT 50–300 ms backoff window
-without surfacing TX_REJECTED to the host").
-
-**Scope.**
-
-* `RaceLink_Gateway/src/racelink_transport_core.h` — replace
-  `radio->transmit(...)` with the start/finish pair, wire DIO1
-  IRQ handler to fulfil per-slot completions; grow the
-  `txBuf`/`txLen` single-slot to a small ring buffer (size and
-  ordering to be decided alongside the LBT backoff interaction).
-* `RaceLink_Gateway/src/main.cpp` — adjust `try_schedule_or_nack`
-  rejection logic: `TX_REJECT_TXPENDING` only fires when the
-  ring is full, not on every back-to-back send.
-* Host-side: `_send_m2n` already uses a `Condition.wait_for`
-  per outcome slot — grows naturally to multiple in-flight
-  outcomes if `_pending_send_outcome` becomes a list keyed by
-  some monotone tx-id. **Not** a backwards-incompatible wire
-  change; the gateway emits the same `EV_TX_DONE` per frame.
-
-**Unlocks.**
-
-* Per-packet wall-clock drops from ~airtime + 14 ms to
-  ~airtime + 5–7 ms (recovers the 7–9 ms gateway housekeeping
-  that today serialises with the next frame's submission).
-* Multi-packet scenes (offset_group fan-out, scene runs with
-  many small actions) gain proportionally more — a 5-packet
-  action saves 35–45 ms scene-wall-clock.
-* Necessary stepping-stone for any future "true parallel
-  fan-out per device-group" feature.
-
-**Risks / open questions.**
-
-* LBT (Listen Before Talk) interaction: the firmware currently
-  runs `lbtEnable=false` on the master gateway. If LBT is ever
-  enabled, the queue+pipeline interacts with the per-frame
-  CAD scan in ways that need careful design — Mexican standoff
-  between "next frame is queued" and "current frame is doing
-  CAD backoff".
-* Order guarantees: the host's protocol assumes a strict TX
-  order matching submission order. The ring must preserve FIFO
-  even if RadioLib's IRQ fires out of order (it shouldn't —
-  TXDONE is for one frame at a time — but the design must not
-  rely on that being absolute).
-
-**Reference.** Per-packet wall-clock decomposition with
-attribution lives in [Wire timing](reference/wire-timing.md).
+- replacing professional lighting consoles
+- replacing QLC+, xLights, Resolume, TouchDesigner, Companion, or similar tools
+- streaming full DMX universes over LoRa
+- streaming pixel data over LoRa
+- transporting continuous audio-reactive or beat-synchronized control frames over LoRa
+- turning the RaceLink WebUI into a full show editor
+- putting Art-Net/sACN mapping logic into Gateway firmware as the default approach
+- adding hardware interfaces before Host-side adapters prove insufficient

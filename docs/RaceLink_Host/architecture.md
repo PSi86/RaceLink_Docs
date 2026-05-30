@@ -415,17 +415,25 @@ single-master for back-compat with the pre-Stage-4 frontend.
 
 ### enumerate_all boot path
 
-`controller.discoverPort` walks two paths depending on the
-operator's `psi_comms_port` setting:
+`controller.discoverPort` walks three paths, chosen by
+`_normalize_comms_pins(rl_comms_port)` (which accepts a single
+port, a comma-separated list, a native list, or a JSON-array
+string):
 
-* **Pinned** (`psi_comms_port` set) — legacy single-port
-  `GatewaySerialTransport.discover_and_open` flow.
-* **Unpinned** — `GatewaySerialTransport.enumerate_all()`
+* **Single pin** (one port) — legacy single-port
+  `GatewaySerialTransport.discover_and_open` flow: open exactly
+  that device, no probe walk, never calls `enumerate_all`.
+* **Unpinned** (empty) — `GatewaySerialTransport.enumerate_all()`
   probes every USB port + returns the list of
   `(port, ident_mac)` tuples for every responding RaceLink
   gateway. The controller then constructs one transport per
   hit, calls `_attach_transport` for each, and the bind
   service classifies them in sequence.
+* **Multi pin** (≥2 ports) — runs `enumerate_all()` then filters
+  the result to the pinned ports before the attach loop. Probing
+  still yields each gateway's `ident_mac`, so the pinned
+  transports bind to their networks the same way the unpinned
+  path does; gateways not in the pin set are ignored.
 
 `_attach_transport(transport)` is the per-transport
 orchestrator: `transport.start()`, append to `_transports`,
