@@ -33,7 +33,7 @@ After a fresh flash, a RaceLink WLED node boots with:
 | AP IP | `4.3.2.1` |
 | OTA password | `wledota` (`DEFAULT_OTA_PASS`) |
 | OTA lock | off (`otaLock=false` because the build does not define `WLED_OTA_PASS`) |
-| Same-subnet OTA gate | **on** (`otaSameSubnet=true`) — the host's OTA workflow flips this off automatically; see [`../RaceLink_Host/operator-guide.md`](../RaceLink_Host/operator-guide.md) §"Common OTA failure modes" |
+| Same-subnet OTA gate | **on** (`otaSameSubnet=true`) — the host's OTA workflow flips this off automatically; see [`../RaceLink_Host/firmware-updates.md`](../RaceLink_Host/firmware-updates.md) §"Common OTA failure modes" |
 | Settings PIN | unset |
 | Master MAC binding | unset (will pair to the first gateway it discovers) |
 | Group ID | unset (lands in group 0 "Unconfigured" on the host) |
@@ -502,7 +502,7 @@ collision) lives in [`headless-mode.md`](headless-mode.md).
 * **OTA fails with 401.** See the failure-mode index in
   [`../troubleshooting.md`](../troubleshooting.md) or the
   operator-side detail in
-  [`../RaceLink_Host/operator-guide.md`](../RaceLink_Host/operator-guide.md)
+  [`../RaceLink_Host/firmware-updates.md`](../RaceLink_Host/firmware-updates.md)
   §"Common OTA failure modes".
 * **Physical button does nothing on short press / hold.** A paired
   master is currently transmitting to the node; the button's

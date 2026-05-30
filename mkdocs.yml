@@ -114,6 +114,18 @@ markdown_extensions:
 
 plugins:
   - search
+  # Clickable screenshots: click (or tap) any image to open it in a
+  # styled lightbox with prev/next navigation (arrow keys + on-screen
+  # arrows + touch swipe), pinch/scroll zoom, and drag-to-pan. All
+  # images on a page form one gallery, so you can page through every
+  # screenshot without closing the overlay.
+  - glightbox:
+      touchNavigation: true
+      loop: true
+      zoomable: true
+      draggable: true
+      auto_caption: true
+      caption_position: bottom
 
 hooks:
   # Rewrite relative source-code refs (../racelink/..., ../../wled00/...,
@@ -136,11 +148,13 @@ nav:
   - Home: index.md
 
   - User Guide:
-      - Operator guide (Host): RaceLink_Host/operator-guide.md
-      - Scene authoring & RL presets: RaceLink_Host/scene-authoring.md
+      - WebUI Overview: RaceLink_Host/webui-overview.md
+      - Discover & configure devices: RaceLink_Host/device-setup.md
+      - Firmware updates & WLED presets: RaceLink_Host/firmware-updates.md
+      - RL Presets: RaceLink_Host/rl-presets.md
+      - Scene authoring: RaceLink_Host/scene-authoring.md
       - Multi-Network operator guide: RaceLink_Host/multi-network.md
       - Ethernet networks (Draft): RaceLink_Host/ethernet-networks.md
-      - Host WebUI tour: RaceLink_Host/webui-guide.md
       - Standalone install (Windows + Linux): RaceLink_Host/standalone-install.md
       - Gateway operator setup: RaceLink_Gateway/operator-setup.md
       - WLED node operator setup: RaceLink_WLED/operator-setup.md

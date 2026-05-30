@@ -10,21 +10,21 @@ this page is a **navigation aid**, not the source of truth.
 
 * `PORT_BUSY` — another process is using the dongle. Close it and
   click *Retry connection*.
-  → [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md)
-  §"Confirm the gateway is connected".
+  → [`RaceLink_Host/webui-overview.md`](RaceLink_Host/webui-overview.md)
+  §"Connection banners and recovery".
 * `NOT_FOUND` — the dongle is not plugged in or the OS has not
   enumerated it.
 * `LINK_LOST` — the dongle was working but disappeared. The host
   auto-retries with backoff.
-  → [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md)
-  §"When the master pill says ERROR".
+  → [`RaceLink_Host/webui-overview.md`](RaceLink_Host/webui-overview.md)
+  §"Connection banners and recovery".
 
 ### The master pill stays in `UNKNOWN`
 
 The host has not received a state report yet. Click ↻ next to the
 pill to send a `GW_CMD_STATE_REQUEST`. Useful after a USB reconnect.
-→ [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md) §"Master
-pill states".
+→ [`RaceLink_Host/webui-overview.md`](RaceLink_Host/webui-overview.md)
+§"The master bar — gateway badges".
 
 ### Two processes can't share the gateway
 
@@ -40,16 +40,16 @@ against the same dongle, the second one fails with `PORT_BUSY`.
 * Devices off / out of range / paired to a different gateway.
 * Each node is paired to one gateway by MAC at first boot. Use
   *Forget master MAC* on the node to un-pair.
-  → [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md) §"Discover
-  devices" and § "Forgetting a master MAC un-pairs the device".
+  → [`RaceLink_Host/device-setup.md`](RaceLink_Host/device-setup.md)
+  §"Discover devices" and §"Node config — single-shot commands".
 
 ### "Bulk set group failed"
 
 The bulk-set sends `OPC_SET_GROUP` to each selected device and waits
 for an ACK. Offline devices time out individually; the others
 continue. Check the masterbar's task summary for the per-device count.
-→ [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md)
-§"Common things that go wrong".
+→ [`RaceLink_Host/device-setup.md`](RaceLink_Host/device-setup.md)
+§"Bulk actions".
 
 ## Scenes
 
@@ -61,24 +61,23 @@ continue. Check the masterbar's task summary for the per-device count.
 * Targeted devices are offline.
 * Targeted devices are still in offset mode and the action carries
   `OFFSET_MODE=0`. The strict gate drops these silently.
-  → [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md)
-  §"Common things that go wrong" and §6a "Important: offset mode is
-  sticky".
+  → [`RaceLink_Host/scene-authoring.md`](RaceLink_Host/scene-authoring.md)
+  §"Common scene-editor pitfalls" and §"Working with offset mode".
 
 ### "Scene editor says I have unsaved changes but I just saved"
 
 The dirty check is byte-exact on the canonical scene shape. Even
 whitespace in the label counts.
-→ [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md)
-§"Common things that go wrong".
+→ [`RaceLink_Host/scene-authoring.md`](RaceLink_Host/scene-authoring.md)
+§"Common scene-editor pitfalls".
 
 ### "Cost badge says ≈ 50 ms but my scene takes 5 seconds"
 
 The cost badge shows *radio airtime* — how long the LoRa packets
 spend in the air. Delays (`Delay` action) and host-side runner
 overhead are not included.
-→ [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md)
-§"Common things that go wrong".
+→ [`RaceLink_Host/scene-authoring.md`](RaceLink_Host/scene-authoring.md)
+§"Common scene-editor pitfalls".
 
 ### Cyclic effects (Breathe, Pacifica, …) phase-lock across groups
 
@@ -91,7 +90,8 @@ node. For older firmware, prefer state-machine effects
 → [`reference/opcodes.md`](reference/opcodes.md) §"Cyclic-effect phase-lock"
 (canonical explanation);
 [`reference/deterministic-effects.md`](reference/deterministic-effects.md);
-[`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md) §6a.
+[`RaceLink_Host/scene-authoring.md`](RaceLink_Host/scene-authoring.md)
+§"Working with offset mode".
 
 ## WebUI
 
@@ -127,7 +127,7 @@ WLED rejected the firmware POST. Possible causes:
   in the device's `cfg.json`.
 * **OTA lock with a non-default password.** Override the
   "WLED OTA password" field in the OTA dialog (default `wledota`).
-  → [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md)
+  → [`RaceLink_Host/firmware-updates.md`](RaceLink_Host/firmware-updates.md)
   §"Common OTA failure modes".
 
 ### `"AP '<SSID>': authentication failed"`
@@ -135,7 +135,7 @@ WLED rejected the firmware POST. Possible causes:
 Wrong WiFi PSK, **or** the device's hostapd is briefly rate-limiting
 after recent failed attempts. Wait ~30 s and retry once before
 assuming a configuration mistake.
-→ [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md)
+→ [`RaceLink_Host/firmware-updates.md`](RaceLink_Host/firmware-updates.md)
 §"Common OTA failure modes".
 
 ### `"PIN code required"`
@@ -158,7 +158,8 @@ OTA gate matrix" — Gate 4.
 The same-network gate uses *the device's* `Network.localIP()`, not
 the host's. No host-side IP reconfiguration brings the host into the
 device's STA subnet. The host-side auto-unlock POST is the fix.
-→ [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md);
+→ [`RaceLink_Host/firmware-updates.md`](RaceLink_Host/firmware-updates.md)
+§"Common OTA failure modes";
 [`RaceLink_Host/developer-guide.md`](RaceLink_Host/developer-guide.md) §"WLED
 OTA gate matrix".
 

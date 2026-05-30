@@ -59,40 +59,42 @@ middle column; cross-references in the right column.
 | **System overview** (architecture diagram, components) | [`docs/index.md`](docs/index.md) | `RaceLink_Host/README.md`, `RaceLink_Gateway/README.md`, `RaceLink_WLED/README.md` |
 | **Glossary** (Preset / Effect / Group / Capability / Master pill / etc.) | [`docs/glossary.md`](docs/glossary.md) | — |
 | **Multi-Network operator workflow** (create network, bind wizard, RF migration, channel scan, setup-change assistant) | [`docs/RaceLink_Host/multi-network.md`](docs/RaceLink_Host/multi-network.md) | reference/channels.md, RaceLink_Host/architecture.md §"Multi-Transport runtime" |
-| **Broadcast scope** (BroadcastTarget, threaded fan-out, scene-derived sync scope, operator-pinned `scene.network_scope` with Auto / Explicit modes) | [`docs/RaceLink_Host/architecture.md`](docs/RaceLink_Host/architecture.md) §"Cross-network fan-out (Stage 3 Part G → BroadcastTarget refactor)" | RaceLink_Host/multi-network.md §"Scene broadcast scope"; RaceLink_Host/operator-guide.md §7 "Scene scope on multi-network setups" |
-| **Move groups between networks** (per-group migration, unified Manage-groups dialog, multi-group selection, offline-mode block/skip/force) | [`docs/RaceLink_Host/multi-network.md`](docs/RaceLink_Host/multi-network.md) §"Move groups between networks" | RaceLink_Host/architecture.md §"Per-group network migration"; RaceLink_Host/operator-guide.md §3 "Move groups to a different network" |
+| **Broadcast scope** (BroadcastTarget, threaded fan-out, scene-derived sync scope, operator-pinned `scene.network_scope` with Auto / Explicit modes) | [`docs/RaceLink_Host/architecture.md`](docs/RaceLink_Host/architecture.md) §"Cross-network fan-out (Stage 3 Part G → BroadcastTarget refactor)" | RaceLink_Host/multi-network.md §"Scene broadcast scope"; RaceLink_Host/scene-authoring.md §"Scene scope on multi-network setups" |
+| **Move groups between networks** (per-group migration, unified Manage-groups dialog, multi-group selection, offline-mode block/skip/force) | [`docs/RaceLink_Host/multi-network.md`](docs/RaceLink_Host/multi-network.md) §"Move groups between networks" | RaceLink_Host/architecture.md §"Per-group network migration"; RaceLink_Host/device-setup.md §"Manage groups (reorder + move between networks)" |
 | **Channel table** (per-region channel slots, compliance) | [`docs/reference/channels.md`](docs/reference/channels.md) | RaceLink_Host/multi-network.md, reference/wire-protocol.md §`P_RfConfig` |
 | **`P_RfConfig` / `OPC_RF_CONFIG` / `EV_RF_CHANGED`** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) §`P_RfConfig`, §"USB-signal frames" | reference/channels.md, glossary §`P_RfConfig` |
 | **Multi-Transport runtime / Bind-state machine / RF migration engine** | [`docs/RaceLink_Host/architecture.md`](docs/RaceLink_Host/architecture.md) §"Multi-Transport runtime" | RaceLink_Host/reply-matching.md, RaceLink_Host/multi-network.md |
-| **Opcodes** — pragmatic OPC_CONTROL/OFFSET/SYNC explanation | [`docs/reference/opcodes.md`](docs/reference/opcodes.md) | reference/wire-protocol.md, RaceLink_Host/operator-guide.md |
-| **Host WebUI structure / lifecycle** | [`docs/RaceLink_Host/webui-guide.md`](docs/RaceLink_Host/webui-guide.md) | `RaceLink_Host/ui-conventions.md`, `RaceLink_Host/operator-guide.md` |
-| **First-time operator workflow** | [`docs/RaceLink_Host/operator-guide.md`](docs/RaceLink_Host/operator-guide.md) | `RaceLink_Gateway/operator-setup.md`, `RaceLink_WLED/operator-setup.md` |
+| **Opcodes** — pragmatic OPC_CONTROL/OFFSET/SYNC explanation | [`docs/reference/opcodes.md`](docs/reference/opcodes.md) | reference/wire-protocol.md, RaceLink_Host/scene-authoring.md |
+| **Host WebUI structure / lifecycle / orientation** | [`docs/RaceLink_Host/webui-overview.md`](docs/RaceLink_Host/webui-overview.md) | `RaceLink_Host/ui-conventions.md`; the task pages (device-setup, firmware-updates, rl-presets, scene-authoring) |
+| **First-time operator workflow** | [`docs/RaceLink_Host/webui-overview.md`](docs/RaceLink_Host/webui-overview.md) §"A healthy-start workflow" | `RaceLink_Host/device-setup.md`, `RaceLink_Gateway/operator-setup.md`, `RaceLink_WLED/operator-setup.md` |
+| **Device discovery / grouping / Specials** | [`docs/RaceLink_Host/device-setup.md`](docs/RaceLink_Host/device-setup.md) | `RaceLink_Host/multi-network.md` (move groups, channel scan); `glossary.md` §"Specials" |
+| **RL Presets library** | [`docs/RaceLink_Host/rl-presets.md`](docs/RaceLink_Host/rl-presets.md) | `RaceLink_Host/scene-authoring.md`; `glossary.md` §"Preset" |
 | **Standalone install (Win + Linux)** | [`docs/RaceLink_Host/standalone-install.md`](docs/RaceLink_Host/standalone-install.md) | `RaceLink_Host/README.md` |
 | **RotorHazard plugin install** | [`docs/RaceLink_RH_Plugin/README.md`](docs/RaceLink_RH_Plugin/README.md) | `RaceLink_RH_Plugin/operator-setup.md` |
-| **Gateway operator setup** | [`docs/RaceLink_Gateway/operator-setup.md`](docs/RaceLink_Gateway/operator-setup.md) | `RaceLink_Host/operator-guide.md` |
+| **Gateway operator setup** | [`docs/RaceLink_Gateway/operator-setup.md`](docs/RaceLink_Gateway/operator-setup.md) | `RaceLink_Host/device-setup.md` |
 | **WLED node operator setup** | [`docs/RaceLink_WLED/operator-setup.md`](docs/RaceLink_WLED/operator-setup.md) | `RaceLink_WLED/README.md` |
 | **Headless Mode (operator)** | [`docs/RaceLink_WLED/headless-mode.md`](docs/RaceLink_WLED/headless-mode.md) | `glossary.md` §Headless Mode; `reference/wire-protocol.md` §`P_Headless` |
 | **Indicators (operator + reference)** | [`docs/RaceLink_WLED/indicators.md`](docs/RaceLink_WLED/indicators.md) | `glossary.md` §Indicator; `reference/wire-protocol.md` §`P_Indicate` |
 | **WLED node pin configuration** | [`docs/RaceLink_WLED/pin-config.md`](docs/RaceLink_WLED/pin-config.md) | `RaceLink_WLED/README.md` §"Build profile notes" |
 | **WLED radio modules (developer)** | [`docs/RaceLink_WLED/radio-modules.md`](docs/RaceLink_WLED/radio-modules.md) | `RaceLink_WLED/operator-setup.md`, `RaceLink_WLED/README.md` |
 | **RotorHazard plugin operator (panels, quickbuttons)** | [`docs/RaceLink_RH_Plugin/operator-setup.md`](docs/RaceLink_RH_Plugin/operator-setup.md) | `RaceLink_Host/architecture.md` §"UI Scope Matrix" |
-| **Authoring scenes (operator)** | [`docs/RaceLink_Host/scene-authoring.md`](docs/RaceLink_Host/scene-authoring.md) | `reference/scene-format.md`; `RaceLink_Host/operator-guide.md` (the broader workflow) |
+| **Authoring scenes (operator)** | [`docs/RaceLink_Host/scene-authoring.md`](docs/RaceLink_Host/scene-authoring.md) | `reference/scene-format.md`; `RaceLink_Host/rl-presets.md`; `RaceLink_Host/device-setup.md` (the broader workflow) |
 | **Offset Mode (operator perspective)** | [`docs/RaceLink_Host/scene-authoring.md`](docs/RaceLink_Host/scene-authoring.md) §"Working with offset mode" | `reference/wire-protocol.md` §"OPC_OFFSET"; `reference/opcodes.md` |
 | **Target picker (Broadcast / Groups / Device)** | [`docs/RaceLink_Host/scene-authoring.md`](docs/RaceLink_Host/scene-authoring.md) §"The target picker" | `reference/broadcast-ruleset.md` |
 | **Scene scope on multi-network (Auto / Explicit)** | [`docs/RaceLink_Host/scene-authoring.md`](docs/RaceLink_Host/scene-authoring.md) §"Scene scope on multi-network setups" | `RaceLink_Host/multi-network.md` §"Scene broadcast scope"; `RaceLink_Host/architecture.md` §"Cross-network fan-out" |
 | **Cyclic-effect phase-lock pitfall** | [`docs/reference/opcodes.md`](docs/reference/opcodes.md) §"Cyclic-effect phase-lock" | `RaceLink_WLED/operator-setup.md`, `troubleshooting.md` |
-| **OTA workflow (operator)** | [`docs/RaceLink_Host/operator-guide.md`](docs/RaceLink_Host/operator-guide.md) §"Firmware updates" | `RaceLink_Host/developer-guide.md` §"WLED OTA gate matrix" |
-| **OTA gate matrix (developer)** | [`docs/reference/wled-ota-gates.md`](docs/reference/wled-ota-gates.md) | `RaceLink_Host/operator-guide.md`; `RaceLink_Host/developer-guide.md` §"WLED OTA gate matrix" pointer |
-| **Master pill states / gateway lifecycle** | [`docs/RaceLink_Host/operator-guide.md`](docs/RaceLink_Host/operator-guide.md) §"Master pill states" | `reference/wire-protocol.md` §"Gateway state machine" |
+| **OTA workflow + WLED presets (operator)** | [`docs/RaceLink_Host/firmware-updates.md`](docs/RaceLink_Host/firmware-updates.md) | `RaceLink_Host/developer-guide.md` §"WLED OTA gate matrix"; `reference/wled-ota-gates.md` |
+| **OTA gate matrix (developer)** | [`docs/reference/wled-ota-gates.md`](docs/reference/wled-ota-gates.md) | `RaceLink_Host/firmware-updates.md`; `RaceLink_Host/developer-guide.md` §"WLED OTA gate matrix" pointer |
+| **Gateway badges / master bar / gateway lifecycle** | [`docs/RaceLink_Host/webui-overview.md`](docs/RaceLink_Host/webui-overview.md) §"The master bar — gateway badges" | `RaceLink_Host/multi-network.md` §"Per-gateway pills"; `reference/wire-protocol.md` §"Gateway state machine" |
 | **Wire protocol (full reference)** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) | `RaceLink_Host/architecture.md` §"Transport Interface" |
 | **Opcodes** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) §"Opcodes" | `glossary.md` §"Opcode" |
 | **Body layouts (P_Preset, OPC_CONTROL, OPC_OFFSET, P_Sync, P_Config)** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) §"Body layouts" | `reference/scene-format.md` |
 | **Flags byte** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) §"Flags byte" | `glossary.md` §"Flags byte" |
-| **`OPC_OFFSET` strict acceptance gate** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) §"Acceptance gate" | `RaceLink_Host/operator-guide.md` §6a |
+| **`OPC_OFFSET` strict acceptance gate** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) §"Acceptance gate" | `RaceLink_Host/scene-authoring.md` §"Working with offset mode" |
 | **`OPC_SYNC` 4 vs 5-byte forms** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) §"OPC_SYNC variants" | — |
 | **USB framing + signal frames** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) §"USB framing" / §"USB-signal frames" | `RaceLink_Gateway/README.md` §"Communication overview" |
 | **`EV_TX_REJECTED` reason codes** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) §"EV_TX_REJECTED reason codes" | `RaceLink_Host/architecture.md` §"Transport Interface" |
-| **Gateway state machine** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) §"Gateway state machine" | `RaceLink_Host/operator-guide.md` §"Master pill" |
+| **Gateway state machine** | [`docs/reference/wire-protocol.md`](docs/reference/wire-protocol.md) §"Gateway state machine" | `RaceLink_Host/webui-overview.md` §"The master bar — gateway badges" |
 | **Broadcast ruleset (two-stage filter)** | [`docs/reference/broadcast-ruleset.md`](docs/reference/broadcast-ruleset.md) | `reference/opcodes.md`, `reference/scene-format.md` |
 | **Per-packet wire timing** | [`docs/reference/wire-timing.md`](docs/reference/wire-timing.md) | `reference/wire-protocol.md` |
 | **Threading model + locks** | [`docs/RaceLink_Host/architecture.md`](docs/RaceLink_Host/architecture.md) §"Threading Model" | `contributing.md` |
@@ -110,13 +112,13 @@ middle column; cross-references in the right column.
 | **WebUI button vocabulary, toast/confirm conventions** | [`docs/RaceLink_Host/ui-conventions.md`](docs/RaceLink_Host/ui-conventions.md) | — |
 | **Gateway hardware target / build flags** | [`docs/RaceLink_Gateway/README.md`](docs/RaceLink_Gateway/README.md) | — |
 | **WLED build profiles** | [`docs/RaceLink_WLED/README.md`](docs/RaceLink_WLED/README.md) §"Supported hardware profiles" | — |
-| **Deterministic effects audit (which effects sync)** | [`docs/reference/deterministic-effects.md`](docs/reference/deterministic-effects.md) | `RaceLink_Host/operator-guide.md` §6a |
-| **Scene file format** (`scenes.json`) | [`docs/reference/scene-format.md`](docs/reference/scene-format.md) | `RaceLink_Host/operator-guide.md` |
+| **Deterministic effects audit (which effects sync)** | [`docs/reference/deterministic-effects.md`](docs/reference/deterministic-effects.md) | `RaceLink_Host/scene-authoring.md` §"Working with offset mode" |
+| **Scene file format** (`scenes.json`) | [`docs/reference/scene-format.md`](docs/reference/scene-format.md) | `RaceLink_Host/scene-authoring.md` |
 | **Web API endpoints** | [`docs/reference/web-api.md`](docs/reference/web-api.md) (stub) | `RaceLink_Host/architecture.md` §"Service Layer" |
 | **SSE channels & state scopes** | [`docs/reference/sse-channels.md`](docs/reference/sse-channels.md) | `RaceLink_Host/architecture.md` §"UI Scope Matrix" |
 | **Versioning policy across components** | [`docs/versioning.md`](docs/versioning.md) | `RaceLink_Host/README.md` §"Release artifacts" |
 | **Contributing rules (PR, smoke tests, conventions)** | [`docs/contributing.md`](docs/contributing.md) | `RaceLink_Host/developer-guide.md` |
-| **Troubleshooting index (operator)** | [`docs/troubleshooting.md`](docs/troubleshooting.md) | `RaceLink_Host/operator-guide.md` |
+| **Troubleshooting index (operator)** | [`docs/troubleshooting.md`](docs/troubleshooting.md) | `RaceLink_Host/webui-overview.md` |
 | **Per-component licences** | [`docs/licenses.md`](docs/licenses.md) | — |
 | **Changelog** | [`docs/changelog.md`](docs/changelog.md) | — |
 | **Roadmap (forward-looking commitments)** | [`docs/roadmap.md`](docs/roadmap.md) | — |
@@ -158,16 +160,16 @@ paths are inside the matching component repository (e.g.
 | `RaceLink_Host/racelink/services/gateway_service.py` | `docs/RaceLink_Host/architecture.md` §"Service Layer" + §"Threading Model" (auto-restore executor, reconnect, pending-request registry) |
 | `RaceLink_Host/racelink/services/gateway_bind_service.py` | `docs/RaceLink_Host/architecture.md` §"Multi-Transport runtime" → "Bind-state machine"; `docs/RaceLink_Host/multi-network.md` §"Conflict resolution" |
 | `RaceLink_Host/racelink/services/rf_migration_service.py` | `docs/RaceLink_Host/architecture.md` §"Multi-Transport runtime" → "RF migration engine" + §"Per-group network migration"; `docs/RaceLink_Host/multi-network.md` §"RF migration" + §"Move groups between networks" |
-| `RaceLink_Host/frontend/src/components/modals/ManageGroupsDialog.vue` + `DevicesSidebar.vue` (single entry point: per-group network migration with multi-select + drag-reorder in one dialog) | `docs/RaceLink_Host/operator-guide.md` §3 "Move groups to a different network"; `docs/RaceLink_Host/multi-network.md` §"Move groups between networks" |
+| `RaceLink_Host/frontend/src/components/modals/ManageGroupsDialog.vue` + `DevicesSidebar.vue` (single entry point: per-group network migration with multi-select + drag-reorder in one dialog) | `docs/RaceLink_Host/device-setup.md` §"Manage groups (reorder + move between networks)"; `docs/RaceLink_Host/multi-network.md` §"Move groups between networks" |
 | `RaceLink_Host/racelink/services/channel_scan_service.py` | `docs/RaceLink_Host/architecture.md` §"Multi-Transport runtime" → "Channel-Scan service"; `docs/RaceLink_Host/multi-network.md` §"Channel Scan" |
 | `RaceLink_Host/racelink/domain/rf_channels.py` / `rf_policy.py` | `docs/reference/channels.md`; `docs/reference/wire-protocol.md` §`P_RfConfig` if the wire fields change |
 | `RaceLink_Host/racelink/domain/network_boundary.py` | `docs/RaceLink_Host/architecture.md` §"Network-boundary enforcement"; `docs/RaceLink_Host/multi-network.md` §"Boundary enforcement" |
-| `RaceLink_Host/racelink/services/ota_service.py` / `ota_workflow_service.py` | `docs/RaceLink_Host/operator-guide.md` §"Firmware updates"; `docs/reference/wled-ota-gates.md` if the four-gate semantics or the host-side auto-unlock contract changes; the module-docstring on `ota_workflow_service.py` carries the per-device cleanup contract (AP-Enable retry shape, conditional AP-Close, two-track error surface) |
+| `RaceLink_Host/racelink/services/ota_service.py` / `ota_workflow_service.py` | `docs/RaceLink_Host/firmware-updates.md` §"Firmware Update (OTA)"; `docs/reference/wled-ota-gates.md` if the four-gate semantics or the host-side auto-unlock contract changes; the module-docstring on `ota_workflow_service.py` carries the per-device cleanup contract (AP-Enable retry shape, conditional AP-Close, two-track error surface) |
 | `RaceLink_Host/racelink/services/host_wifi_service.py` | `docs/RaceLink_Host/standalone-install.md` §"Linux first-time setup" |
-| `RaceLink_Host/racelink/services/rl_presets_service.py` / `presets_service.py` | `docs/glossary.md` (Preset entry); `docs/RaceLink_Host/scene-authoring.md` §"Author RL presets" |
-| `RaceLink_Host/racelink/services/specials_service.py` | `docs/RaceLink_Host/operator-guide.md` §"Configure devices (Specials)" |
-| `RaceLink_Host/racelink/services/discovery_service.py` / `status_service.py` | `docs/RaceLink_Host/operator-guide.md` §"Discover devices"; `docs/reference/web-api.md` |
-| `RaceLink_Host/racelink/services/startblock_service.py` / `stream_service.py` | `docs/reference/wire-protocol.md` §"OPC_STREAM" if format changes; `docs/RaceLink_Host/operator-guide.md` if operator UI changes |
+| `RaceLink_Host/racelink/services/rl_presets_service.py` / `presets_service.py` | `docs/glossary.md` (Preset entry); `docs/RaceLink_Host/rl-presets.md` (RL Presets library); `docs/RaceLink_Host/firmware-updates.md` §"WLED Presets" |
+| `RaceLink_Host/racelink/services/specials_service.py` | `docs/RaceLink_Host/device-setup.md` §"Configure devices (Specials)" |
+| `RaceLink_Host/racelink/services/discovery_service.py` / `status_service.py` | `docs/RaceLink_Host/device-setup.md` §"Discover devices"; `docs/reference/web-api.md` |
+| `RaceLink_Host/racelink/services/startblock_service.py` / `stream_service.py` | `docs/reference/wire-protocol.md` §"OPC_STREAM" if format changes; `docs/RaceLink_Host/scene-authoring.md` §"Action kinds" (Startblock Control) if operator UI changes |
 | `RaceLink_Host/racelink/state/repository.py` | `docs/RaceLink_Host/architecture.md` §"Threading Model" (the lock); `docs/contributing.md` §"Locking rule" |
 | `RaceLink_Host/racelink/web/api.py` | `docs/reference/web-api.md` (route list, request/response shapes); `docs/RaceLink_Host/developer-guide.md` §"Adding a new service" route conventions |
 | `RaceLink_Host/racelink/web/sse.py` / `racelink/domain/state_scope.py` | `docs/reference/sse-channels.md` (token map); `docs/RaceLink_Host/architecture.md` §"UI Scope Matrix" |
@@ -179,7 +181,7 @@ paths are inside the matching component repository (e.g.
 | `RaceLink_Host/racelink/domain/wled_deterministic.py` | `docs/reference/deterministic-effects.md`; `docs/RaceLink_Host/developer-guide.md` §"Updating the WLED-deterministic effects list" |
 | `RaceLink_Host/racelink/domain/state_scope.py` | `docs/reference/sse-channels.md`; `docs/RaceLink_Host/architecture.md` §"UI Scope Matrix" |
 | `RaceLink_Host/racelink/domain/indicators.py` (Python mirror of the indicator catalog) | `docs/RaceLink_WLED/indicators.md`; `docs/glossary.md` §"Indicator" if semantics change |
-| `RaceLink_Host/racelink/domain/capabilities.py` (caps filter for scene targets) | `docs/glossary.md` §"Capability"; `docs/RaceLink_Host/operator-guide.md` if the cap-filter UX changes |
+| `RaceLink_Host/racelink/domain/capabilities.py` (caps filter for scene targets) | `docs/glossary.md` §"Capability"; `docs/RaceLink_Host/scene-authoring.md` if the cap-filter UX changes |
 | `RaceLink_Host/racelink/domain/specials.py` / `models.py` | `docs/reference/wire-protocol.md` body layouts if wire-relevant |
 | `RaceLink_Host/racelink/static/scenes.js` | `docs/reference/scene-format.md` (kind-to-cap mapping); `docs/RaceLink_Host/ui-conventions.md` if button vocabulary touched |
 | `RaceLink_Host/racelink/static/racelink.js` | `docs/RaceLink_Host/ui-conventions.md`; `docs/reference/sse-channels.md` if the SSE consumer contract changes |
@@ -229,12 +231,14 @@ authoritative file followed by supporting code.
 | `docs/RaceLink_Host/architecture.md` | `RaceLink_Host/racelink/app.py`, `controller.py`, `racelink/services/*.py`, `racelink/state/repository.py`, `racelink/web/sse.py`, `racelink/transport/gateway_serial.py` |
 | `docs/RaceLink_Host/multi-network.md` | `racelink/services/{gateway_bind_service,rf_migration_service,channel_scan_service}.py`; `racelink/domain/{network_boundary,rf_channels,rf_policy}.py`; `racelink/controller.py` (transport_for_network / transport_for_device / transport_for_group); `racelink/web/api.py` `/api/networks*` + `/api/gateways*` routes; `racelink/services/scene_network_scope.py` + `racelink/transport/{broadcast_target,broadcast_fanout}.py` (scene-driven broadcast scope) |
 | `docs/reference/channels.md` | `racelink/domain/rf_channels.py` (the shipped table); `racelink/domain/rf_policy.py` (validator); `tests/test_rf_channels.py` + `tests/test_rf_policy_separation.py` pin the invariants |
-| `docs/RaceLink_Host/operator-guide.md` | (operator-facing aggregator, no single backing file; the OTA-workflow body in §"Firmware updates" is backed by `racelink/services/ota_workflow_service.py`) |
+| `docs/RaceLink_Host/webui-overview.md` | (operator-facing orientation; backed by `racelink/static/racelink.js`, `racelink/pages/*.html`, `racelink/web/{sse,tasks,api}.py`) |
+| `docs/RaceLink_Host/device-setup.md` | `racelink/services/{discovery_service,status_service,specials_service}.py`; `racelink/services/group*`/repository for grouping; `racelink/domain/{capabilities,network_boundary}.py`; frontend `ManageGroupsDialog.vue` / `DevicesSidebar.vue` |
+| `docs/RaceLink_Host/firmware-updates.md` | `racelink/services/{ota_service,ota_workflow_service,presets_service}.py`; `racelink/services/host_wifi_service.py`; `reference/wled-ota-gates.md` for the gate matrix |
+| `docs/RaceLink_Host/rl-presets.md` | `racelink/services/rl_presets_service.py`; the `OPC_CONTROL` mapping in `reference/opcodes.md` |
 | `docs/RaceLink_Host/scene-authoring.md` | `racelink/services/scenes_service.py`, `scene_runner_service.py`, `scene_cost_estimator.py`, `scene_network_scope.py`, `dispatch_planner.py`, `offset_dispatch_optimizer.py`; firmware `racelink_wled.cpp` (offset-mode strict gate, deferred-apply); the cost-badge contract lives in `reference/scene-format.md` |
 | `docs/RaceLink_Host/developer-guide.md` | `RaceLink_Host/racelink/services/scenes_service.py`, `racelink/services/scene_runner_service.py`, `racelink/services/scene_cost_estimator.py`; `RaceLink_Host/racelink_proto.h`; `RaceLink_Host/gen_wled_metadata.py` and `racelink/domain/wled_*.py`; `RaceLink_Host/racelink/services/ota_service.py` |
 | `docs/reference/wire-protocol.md` | **canonical: `RaceLink_Host/racelink_proto.h`** (mirrored in Gateway + WLED). Helpers: `racelink/protocol/{packets,codec,rules}.py`, `racelink/transport/framing.py`, `racelink/racelink_proto_auto.py`, `gen_racelink_proto_py.py`, `tests/test_proto_header_drift.py` |
 | `docs/reference/opcodes.md` | `racelink/services/control_service.py`, `scene_runner_service.py`, `offset_dispatch_optimizer.py`, `sync_service.py`; firmware `racelink_wled.cpp` (`handleControl`, `handleSync`, `serviceDeferredApply`, `applyPhaseOffsetToTimebase`); `racelink_proto.h` for the wire spec |
-| `docs/RaceLink_Host/webui-guide.md` | `racelink/static/racelink.js`, `scenes.js`; `racelink/pages/*.html`; `racelink/web/sse.py`, `tasks.py`, `api.py` |
 | `docs/RaceLink_Host/ui-conventions.md` | `RaceLink_Host/racelink/static/racelink.js` (`showToast`, `confirmDestructive`, `setBusy`); `racelink/static/scenes.js`; `racelink/pages/*.html` |
 | `docs/RaceLink_Host/standalone-install.md` | `RaceLink_Host/racelink/integrations/standalone/`; `RaceLink_Host/scripts/setup_nmcli_polkit.sh`; the `racelink-standalone` and `racelink-setup-nmcli` console-script entry points in `pyproject.toml` |
 | `docs/RaceLink_Gateway/README.md` | `RaceLink_Gateway/src/main.cpp`, `racelink_transport_core.h`, `platformio.ini` |

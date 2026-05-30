@@ -42,9 +42,12 @@ section by section.
 
 1. [`RaceLink_Host/standalone-install.md`](RaceLink_Host/standalone-install.md) — install
    and run the host on Windows / Linux.
-2. [`RaceLink_Host/operator-guide.md`](RaceLink_Host/operator-guide.md) —
-   end-to-end workflow, safety rules, offset-mode operator view,
-   troubleshooting.
+2. [`RaceLink_Host/webui-overview.md`](RaceLink_Host/webui-overview.md) —
+   orientation on the WebUI, then the task guides:
+   [device setup](RaceLink_Host/device-setup.md),
+   [firmware updates](RaceLink_Host/firmware-updates.md),
+   [RL presets](RaceLink_Host/rl-presets.md) and
+   [scene authoring](RaceLink_Host/scene-authoring.md).
 3. [`RaceLink_Gateway/operator-setup.md`](RaceLink_Gateway/operator-setup.md) — connect the USB
    gateway, identify it on the host, OLED indicators.
 4. [`RaceLink_WLED/operator-setup.md`](RaceLink_WLED/operator-setup.md) — pair a node, factory

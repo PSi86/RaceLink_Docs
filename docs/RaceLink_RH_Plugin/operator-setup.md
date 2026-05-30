@@ -7,9 +7,9 @@ the plugin coexists with RotorHazard's lifecycle.
 
 > **Audience.** Operators running RotorHazard who want to use
 > RaceLink to control their LED nodes during a race. For
-> standalone-mode operation (without RotorHazard), see
-> [`../RaceLink_Host/operator-guide.md`](../RaceLink_Host/operator-guide.md)
-> and [`../RaceLink_Host/webui-guide.md`](../RaceLink_Host/webui-guide.md).
+> standalone-mode operation (without RotorHazard), see the
+> [`../RaceLink_Host/webui-overview.md`](../RaceLink_Host/webui-overview.md)
+> and the task guides it links to.
 
 The plugin imports the **same** RaceLink core and the **same**
 WebUI as standalone mode — it's not a fork, it's an adapter. What
@@ -286,8 +286,8 @@ releases the port, the next auto-retry succeeds. Operator still
 did nothing.
 
 For the full lifecycle / banner matrix see
-[`../RaceLink_Host/webui-guide.md`](../RaceLink_Host/webui-guide.md)
-§"Lifecycle resilience".
+[`../RaceLink_Host/webui-overview.md`](../RaceLink_Host/webui-overview.md)
+§"Connection banners and recovery".
 
 ---
 
@@ -425,10 +425,9 @@ For the broader troubleshooting index, see
 
 * [`README.md`](README.md) — installation / development setup /
   release flow.
-* [`../RaceLink_Host/operator-guide.md`](../RaceLink_Host/operator-guide.md) — full
-  operator workflow inside the shared WebUI.
-* [`../RaceLink_Host/webui-guide.md`](../RaceLink_Host/webui-guide.md) —
-  shared WebUI structure and lifecycle.
+* [`../RaceLink_Host/webui-overview.md`](../RaceLink_Host/webui-overview.md) —
+  shared WebUI structure, lifecycle, and links to the operator task
+  guides.
 * [`../reference/opcodes.md`](../reference/opcodes.md) — wire-opcode
   pragmatic explanations.
 * [`../RaceLink_Host/architecture.md`](../RaceLink_Host/architecture.md) §"UI Scope

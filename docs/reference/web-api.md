@@ -359,7 +359,7 @@ Send `OPC_CONTROL` to a group or to a list of devices.
 
 Trigger an `OPC_INDICATE` overlay on one or more devices —
 operator-facing flow is the "Locate" / device-name click in the
-WebUI ([webui-guide](../RaceLink_Host/webui-guide.md)). The
+WebUI ([WebUI Overview](../RaceLink_Host/webui-overview.md)). The
 indicator is rendered as a frame-buffer overlay on each receiver
 and auto-restores when `duration_sec` expires; the underlying
 effect is not disturbed (see
