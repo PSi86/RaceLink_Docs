@@ -12,6 +12,13 @@ For the underlying wire formats, see
 `P_RfConfig` and §`OPC_RF_CONFIG`. For the channel table itself,
 see [`reference/channels.md`](../reference/channels.md).
 
+!!! note "Networks also come in an Ethernet kind (draft)"
+    This guide covers **RF** networks (a LoRa channel bound to a
+    gateway). A network can instead be of *kind* **Ethernet** — an
+    IP/LAN network where the host interface is the transport, reaching
+    devices over UDP. See [Ethernet networks](ethernet-networks.md)
+    (draft proof-of-concept).
+
 ## When you'd reach for this
 
 A second gateway buys you two things, both of them direct
