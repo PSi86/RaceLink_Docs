@@ -257,8 +257,33 @@ bulk regroup. A single-gateway deployment runs on the "Default"
 network created by the v1→v2 persistence migration; multi-gateway
 setups can have several networks at once with the
 [separation rule](reference/channels.md#separation-rule) keeping
-their radios out of each other's way. See
+their radios out of each other's way. Every network also carries a
+[**kind**](#network-kind). See
 [`RaceLink_Host/multi-network.md`](RaceLink_Host/multi-network.md).
+
+### Network kind
+
+The transport *type* of a network: `rf` (a LoRa channel bound to a USB
+gateway) or `ethernet` (UDP over the host's own NIC). The two are
+parallel transport options — neither replaces the other. Persisted on
+`RL_Network.kind` (networks persisted before the kind field default to
+`rf`). RF networks bind a `gateway_mac` and carry an
+`rf_config`; Ethernet networks carry neither and use UDP-port / bind
+settings instead. Groups, isolation, and scene targeting are
+kind-agnostic — they key off `network_id`. Migrating across kinds is
+refused (`network_kind_mismatch`).
+
+### Ethernet network
+
+A network of [kind](#network-kind) `ethernet`: an IP/LAN network where
+the host's own network interface is the transport (no separate gateway),
+reaching devices over UDP instead of LoRa. Devices speak the **full**
+RaceLink opcode set framed in UDP datagrams (not just discovery /
+status / preset). The device firmware (`RaceLink_Ethernet`, an Ethernet
+build of the RaceLink_WLED usermod for an ESP32-S3 + W5500) is
+implemented and compile-verified but still a **draft proof-of-concept**
+pending on-device validation — see
+[`RaceLink_Host/ethernet-networks.md`](RaceLink_Host/ethernet-networks.md).
 
 ### Channel
 

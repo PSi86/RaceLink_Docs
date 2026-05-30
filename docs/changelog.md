@@ -14,6 +14,26 @@ release is grouped into **Added** / **Changed** / **Fixed** /
 > in the maintainer-internal engineering ledger and never reaches
 > this file.
 
+## Unreleased — Ethernet networks: device firmware + full opcode parity (Draft)
+
+!!! warning "Draft — unreleased, hardware bring-up pending"
+    Fold this block into a dated release once the W5500 firmware is
+    validated on real hardware. See
+    [Ethernet networks](RaceLink_Host/ethernet-networks.md).
+
+### Added
+- **`RaceLink_Ethernet` device firmware.** An Ethernet build of the
+  RaceLink_WLED usermod (`-D RACELINK_ETH`) for an ESP32-S3 + Wiznet
+  W5500 module: a self-contained W5500 SPI/UDP driver, non-blocking DHCP
+  with a static-IP fallback, an Ethernet web-UI panel (link / IP / pin
+  map), and the `RaceLink_Node_v5_s3_eth` build target (device type 13).
+  Compile-verified; on-device validation still pending.
+- **Full opcode parity over Ethernet.** The host's `EthernetTransport`
+  now sends the complete M2N set — control, config / get-config, sync,
+  offset, indicate, set-group and streaming — in addition to discovery /
+  status / preset. The firmware's transport-agnostic dispatch handles
+  every opcode regardless of medium.
+
 ## 2026-05-27 — Network-move end-to-end + parallel multi-gateway status
 
 The per-group network move shipped its UI in the previous release, but
