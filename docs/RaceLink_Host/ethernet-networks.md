@@ -1,16 +1,18 @@
 # Ethernet networks (Draft)
 
-!!! warning "Draft — unreleased, hardware bring-up pending"
+!!! warning "Draft — unreleased, hardware bring-up in progress"
     Ethernet networks are an **experimental proof-of-concept**. The
-    host-side transport (now carrying the **full opcode set**, not just
+    host-side transport (carrying the **full opcode set**, not just
     discovery/status/preset) and the **device firmware**
     (`RaceLink_Ethernet`, an Ethernet variant of the RaceLink_WLED
-    usermod) are both implemented and **compile-verified**, but the
-    firmware has **not yet been validated on real W5500 hardware**, and
-    the feature is **not part of a released build**. Treat everything
-    below as a preview of the intended operator experience. Remove this
-    banner and fold the matching [changelog](../changelog.md) block into a
-    dated release once the on-device bring-up is signed off.
+    usermod) are both implemented. The **core flows — discovery, status,
+    preset and group assignment — are verified on a real W5500 node**;
+    broader on-device validation (full control/config/sync/stream, the
+    DHCP lease, broadcast RX, reset timing) is ongoing, and the feature is
+    **not yet part of a released build**. Treat everything below as a
+    preview of the intended operator experience. Remove this banner and
+    fold the matching [changelog](../changelog.md) block into a dated
+    release once the on-device bring-up is signed off.
 
 RaceLink networks come in two **kinds**. The default kind is **RF**:
 a LoRa channel bound to a USB gateway (covered in the
@@ -71,11 +73,13 @@ Ethernet networks are created from the Network Manager.
 * **Master bar pill.** The Ethernet network shows a per-network pill
   exactly like a gateway, sitting at **IDLE** (green) once attached.
   The ↻ refresh leaves it at IDLE — there is no LoRa state to poll.
-* **Network badge.** Wherever a network badge appears (device-view
-  header, sidebar group rows, the Network Manager list) the badge
-  carries a small **kind icon** — a radio glyph for RF, a network
-  glyph for Ethernet — so the two kinds are distinguishable at a
-  glance.
+* **Network badge.** Wherever a network badge appears — the device
+  table, sidebar group rows, the **Manage groups** dialog, the scene
+  editor's **Select target groups** picker, and the Network Manager
+  list — the badge carries a small **kind icon** (a radio glyph for RF,
+  a network glyph for Ethernet) so the two kinds read at a glance.
+  Static and empty/unassigned groups carry no badge. See
+  [Multi-Network §Network badges](multi-network.md#network-badges).
 * **Network Manager editor.** Selecting an Ethernet network shows its
   name (editable) and a read-only transport summary (UDP ports, bind /
   broadcast host) in place of the RF region / channel / RF-preview
@@ -90,6 +94,14 @@ RF group. On top of that, **migrating a group or device across network
 *kinds* (RF ↔ Ethernet) is rejected** with HTTP 400
 `network_kind_mismatch`: the two transports are physically different, so
 there is nothing to migrate.
+
+**Getting an Ethernet device into a group.** Because a group takes
+devices from one network only and an Ethernet device can't join an RF
+group, you don't move it onto an existing RF group — you drop it into a
+**fresh, empty group**. A new group is [network-agnostic](multi-network.md#concept-refresher)
+until its first member: assigning the discovered Ethernet device makes
+that group an **Ethernet group** automatically. (A freshly discovered
+device starts in **Unconfigured**, which is always network-agnostic.)
 
 ## Device firmware (RaceLink_Ethernet)
 
@@ -129,12 +141,13 @@ byte-level contract reference for the firmware:
 python scripts/mock_ethernet_node.py --mac AABBCCDDEE01 --group 1 --node-port 5078
 ```
 
-It answers discovery with `IDENTIFY_REPLY`, reports telemetry on
-`OPC_STATUS`, and applies `OPC_PRESET`. Run several instances with
-different `--mac` / `--node-port` to emulate a small fleet. With the
-mock node running, adding the matching Ethernet network and running
-discovery finds it as a device; status polling shows its telemetry; and
-a preset is applied.
+It answers the **full opcode set** the firmware does: `IDENTIFY_REPLY`
+to discovery, telemetry on `OPC_STATUS`, applies `OPC_PRESET`, ACKs
+`OPC_SET_GROUP` / `OPC_CONFIG` / `OPC_STREAM`, replies to
+`OPC_GET_CONFIG`, and accepts `OPC_CONTROL` / `OPC_SYNC` / `OPC_OFFSET` /
+`OPC_INDICATE`. Run several instances with different `--mac` /
+`--node-port` to emulate a small fleet. The host's end-to-end tests
+drive every one of these over loopback UDP against this mock.
 
 ## Current scope and limitations (PoC)
 
@@ -142,12 +155,12 @@ a preset is applied.
   implemented and compile-verified but has **not** yet been run on real
   W5500 hardware — the DHCP lease, discovery → control → sync against a
   live host, broadcast RX and reset timing still need an on-device pass.
-* **Full opcode parity (host + firmware).** Control, config / get-config,
-  sync, offset, indicate, set-group and streaming now travel over UDP in
-  addition to discovery/status/preset: the firmware's `handlePacket` is
-  transport-agnostic and the host's `EthernetTransport` sends the full
-  set. (The **mock node** still implements only the discovery/status/
-  preset/set-group subset.)
+* **Full opcode parity (host + firmware + mock).** Control, config /
+  get-config, sync, offset, indicate, set-group and streaming travel over
+  UDP in addition to discovery/status/preset: the firmware's
+  `handlePacket` is transport-agnostic, the host's `EthernetTransport`
+  sends the full set, and the stdlib mock node answers it (so the host's
+  loopback end-to-end tests cover every opcode).
 * **No runtime Ethernet config.** UDP ports, DHCP-vs-static and the W5500
   SPI pins are compile-time build flags (DHCP on by default); a runtime
   "ETH config" opcode pair — the Ethernet equivalent of `OPC_RF_CONFIG` —
@@ -155,9 +168,13 @@ a preset is applied.
 * **One Ethernet network per host interface.** Multiple logical
   Ethernet networks on the same NIC (VLAN / multicast group) are a
   later option; the routing model already allows for it.
-* **No time sync.** LoRa `arm_on_sync` coordination relies on
-  overlapping airtime; the equivalent for Ethernet (NTP / PTP /
-  broadcast latency) is out of scope for the PoC.
+* **Time sync is host-driven.** On RF the gateway emits the periodic
+  `OPC_SYNC` that keeps node timebases aligned; an Ethernet network has
+  no gateway, so the **host** drives it — one `OPC_SYNC` broadcast per
+  Ethernet network every **30 s** (configurable via the
+  `rl_eth_autosync_interval_s` option). RF networks are left to their
+  gateways. A tighter cross-device guarantee for `arm_on_sync`
+  choreography (NTP / PTP) remains out of scope for the PoC.
 
 See the [Multi-Network operator guide](multi-network.md) for the RF
 side, and the [glossary](../glossary.md) for the **Network kind** and

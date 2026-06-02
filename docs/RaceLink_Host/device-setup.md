@@ -16,9 +16,22 @@ A few terms used throughout (full list in the [Glossary](../glossary.md)):
   starting-block, …), identified by its MAC; the table shows the last
   6 hex for brevity.
 * **Group** — a named bucket of devices, usually by physical location
-  ("Pit Wall", "Start Line"). Most scene actions target a group.
-* **Network** — the gateway + radio (or Ethernet) a group belongs to.
-  One network per group.
+  ("Pit Wall", "Start Line"). Most scene actions target a group. A group
+  holds devices from **one network only**. A new or emptied group has
+  **no network yet** and adopts the network of the **first device that
+  joins it** — which also decides whether it is an RF or an Ethernet
+  group. Remove the last device and the group reverts to unassigned.
+* **Network** — the gateway + radio (RF) or the host's own NIC
+  (Ethernet) that a group's devices live on. One network per group.
+
+**Network badges.** Every device row and every assigned group shows a
+small coloured **network badge** naming its network, with a kind icon —
+a radio glyph for **RF**, a network glyph for **Ethernet** — so the two
+kinds read at a glance. The badge appears in the device table, the
+Groups sidebar, the **Manage groups** dialog, and the scene editor's
+**Select target groups** picker. Static groups (`Unconfigured`,
+`All WLED Nodes`) and empty/unassigned groups carry **no badge** — they
+belong to no single network.
 
 ---
 
@@ -98,10 +111,11 @@ closing it:
   scene actions follow the group by its new id; untick only if you
   want scenes to follow the slot number instead.
 * **Move groups between networks** — tick one or more groups (their
-  current network badge is shown on the right), pick a **Target**
-  network, and click **Move selected**. Static groups
+  current network badge is shown on the right, if assigned), pick a
+  **Target** network, and click **Move selected**. Static groups
   (`Unconfigured`, `All WLED Nodes`) are network-agnostic and can't be
-  moved. Online member devices reconfigure to the target network and
+  moved; an empty group shows no badge until a device joins it. Online
+  member devices reconfigure to the target network and
   reboot (~5 s offline), then re-pair to the target gateway on their
   own. The full offline-handling (Block / Skip / Force) is in
   [Multi-Network §Move groups between networks](multi-network.md#move-groups-between-networks).

@@ -43,11 +43,20 @@ for stranded devices.
 ## Concept refresher
 
 * A **Network** (`RL_Network`) is the operator-visible bundle of
-  a name, a `gateway_mac` binding, and an `rf_config`. Groups
-  and devices belong to exactly one network at a time. The
+  a name, a `gateway_mac` binding, and an `rf_config`. Devices
+  belong to exactly one network at a time. The
   host's v1→v2 migration creates a default network on first
   boot so single-gateway deployments inherit the multi-network
   data model transparently.
+* A **Group's network is decided by its members**, not set up
+  front. A group holds devices from **exactly one** network (the
+  boundary validator refuses to mix networks in a group). A new or
+  emptied group is **network-agnostic** — it has no network and shows
+  no [network badge](#network-badges); the first device that joins
+  stamps the group's network, and therefore whether it is an **RF** or
+  an **Ethernet** group. Remove the last device and the group reverts to
+  unassigned, free to be re-purposed for either kind. (`Unconfigured`
+  and the static `All WLED Nodes` group are permanently agnostic.)
 * A **Channel** is a named slot in the host's region table
   (max five per region — see
   [`reference/channels.md`](../reference/channels.md)). Picking
@@ -80,6 +89,26 @@ After a successful boot with two gateways attached:
   network expects it to be".
 * **Group filter** still works the same; combined with the
   network filter, the table shows the intersection.
+
+## Network badges
+
+A **network badge** is a small coloured chip naming a network, with a
+**kind icon** — a radio glyph for **RF**, a network glyph for
+**Ethernet** — so the two [network kinds](ethernet-networks.md) are
+distinguishable at a glance. The colour is a deterministic palette pick
+by network id, so a given network keeps the same colour across reloads.
+
+The badge appears wherever a device or group's network is shown:
+
+* the **Device Table** "Network" column (hover for the device's
+  last-known `freq_hz` / SF / BW / SyncWord on RF rows);
+* the **Groups sidebar** rows;
+* the **Manage groups** dialog;
+* the scene editor's **Select target groups** picker.
+
+Static groups (`Unconfigured`, `All WLED Nodes`) and empty / unassigned
+groups carry **no badge** — they belong to no single network (see the
+group-network rule in the [concept refresher](#concept-refresher)).
 
 ## The Network Manager dialog
 
@@ -377,6 +406,11 @@ different networks is **rejected by the host** with HTTP 400:
   toast.
 * Moving devices into the **Unconfigured** group (id 0) is
   always allowed; it's the cross-network sink.
+* Moving a device into an **empty (network-agnostic) group** is
+  also always allowed — there is no network to conflict with yet;
+  the move stamps the group's network (and kind) from that first
+  device. This is how an Ethernet device reaches a group: create a
+  fresh group and drop it in.
 
 The validator lives in
 `RaceLink_Host/racelink/domain/network_boundary.py`. Two
@@ -490,7 +524,10 @@ the left. Tick one or more rows, pick a **Target** network, click
 **Move N selected**.
 
 Static groups (`Unconfigured`, group `0`, plus `All WLED Nodes`) are
-network-agnostic by design — their checkbox is disabled.
+network-agnostic by design — their checkbox is disabled. An **empty
+group** is likewise network-agnostic (no badge); rather than moving it,
+just drop a device in and the group adopts that device's network (and
+kind) automatically.
 
 The move uses one RF migration path under the hood — push
 `OPC_RF_CONFIG` with the target network's settings, then flip the

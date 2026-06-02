@@ -20,7 +20,10 @@ six in the device table for brevity. Has a *type* that determines its
 A named bucket of devices. Operators usually group by physical
 location ("Pit Wall", "Start Line", "Tower 3"). The group is what most
 scene actions target — sending a packet to a group broadcasts to every
-device whose `groupId` matches.
+device whose `groupId` matches. A group holds devices from **one
+[network](#network-rl_network) only**; an empty group is
+network-agnostic (no badge) and adopts the network — and
+[kind](#network-kind) — of the first device that joins it.
 
 Group ids are `1..254`. Group `0` is the synthetic "Unconfigured"
 group every newly-discovered device starts in. Group `255` is the
@@ -251,9 +254,10 @@ gate so operators always have a recovery path. See
 ### Network (`RL_Network`)
 
 The operator-visible bundle of a name, a `gateway_mac` binding,
-and an `rf_config`. Devices and groups belong to exactly one
-network at a time; the boundary is enforced server-side at every
-bulk regroup. A single-gateway deployment runs on the "Default"
+and an `rf_config`. A device belongs to exactly one network at a
+time; a [group](#group) inherits its network from its members (an
+empty group is network-agnostic). The boundary is enforced
+server-side at every bulk regroup. A single-gateway deployment runs on the "Default"
 network created by the v1→v2 persistence migration; multi-gateway
 setups can have several networks at once with the
 [separation rule](reference/channels.md#separation-rule) keeping
@@ -281,9 +285,9 @@ reaching devices over UDP instead of LoRa. Devices speak the **full**
 RaceLink opcode set framed in UDP datagrams (not just discovery /
 status / preset). The device firmware (`RaceLink_Ethernet`, an Ethernet
 build of the RaceLink_WLED usermod for an ESP32-S3 + W5500) is
-implemented and compile-verified but still a **draft proof-of-concept**
-pending on-device validation — see
-[`RaceLink_Host/ethernet-networks.md`](RaceLink_Host/ethernet-networks.md).
+implemented and its core flows are verified on a real W5500 node, with
+broader on-device validation ongoing — still a **draft proof-of-concept**.
+See [`RaceLink_Host/ethernet-networks.md`](RaceLink_Host/ethernet-networks.md).
 
 ### Channel
 
