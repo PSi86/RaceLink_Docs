@@ -62,6 +62,8 @@ RaceLink_WLED/
    ├─ RaceLink_Node_v3_s2_llcc68.platformio_override.ini
    ├─ RaceLink_Node_v3_s2_llcc68_epaper.platformio_override.ini
    ├─ RaceLink_Node_v4_s3_llcc68.platformio_override.ini
+   ├─ RaceLink_Node_v5_s3_eth.platformio_override.ini
+   ├─ RaceLink_Node_v6_s3_heltec_wpaper.platformio_override.ini
    ├─ bak_RaceLink_Node_v3_s2_llcc68.platformio_override.ini
    └─ all_profiles.platformio_override.ini
 ├─ library.json
@@ -86,10 +88,26 @@ The repository currently includes the following build profiles:
 - `RaceLink_Node_v3_s2_llcc68.platformio_override.ini`
 - `RaceLink_Node_v3_s2_llcc68_epaper.platformio_override.ini`
 - `RaceLink_Node_v4_s3_llcc68.platformio_override.ini`
+- `RaceLink_Node_v5_s3_eth.platformio_override.ini`
+- `RaceLink_Node_v6_s3_heltec_wpaper.platformio_override.ini`
 - `bak_RaceLink_Node_v3_s2_llcc68.platformio_override.ini`
 - `all_profiles.platformio_override.ini`
 
 These profiles contain the required compile-time configuration for the currently supported RaceLink node hardware.
+
+Two of the profiles are special variants:
+
+- **`RaceLink_Node_v5_s3_eth`** builds the node with the Ethernet
+  backend (`-D RACELINK_ETH`) for an ESP32-S3 + Wiznet W5500 module
+  instead of a LoRa radio. See the host-side
+  [Ethernet networks](../RaceLink_Host/ethernet-networks.md) guide.
+- **`RaceLink_Node_v6_s3_heltec_wpaper`** targets the Heltec Wireless
+  Paper board (ESP32-S3 + SX1262 + a built-in 2.13″ e-paper panel,
+  device type 51) and builds as a **starting-block** node, sharing the
+  v3 startblock's pilot-slot / e-paper feature set. Heltec ships this
+  board with two different panels, so the GxEPD2 panel class is
+  compile-time selectable (`RACELINK_EPAPER_PANEL_E0213A367` / `_FC1` /
+  default `GDEY037T03`).
 
 ---
 
@@ -162,6 +180,8 @@ pio run -e RaceLink_Node_v1_c3_ct62
 pio run -e RaceLink_Node_v3_s2_llcc68
 pio run -e RaceLink_Node_v3_s2_llcc68_epaper
 pio run -e RaceLink_Node_v4_s3_llcc68
+pio run -e RaceLink_Node_v5_s3_eth
+pio run -e RaceLink_Node_v6_s3_heltec_wpaper
 ```
 
 ---

@@ -595,7 +595,9 @@ that captures the per-hardware-variant compile-time settings (modem,
 SPI pins, LED pins, battery measurement, optional e-paper). Profiles
 shipped today: `RaceLink_Node_v1_c3_ct62`,
 `RaceLink_Node_v3_s2_llcc68`, `RaceLink_Node_v3_s2_llcc68_epaper`,
-`RaceLink_Node_v4_s3_llcc68`.
+`RaceLink_Node_v4_s3_llcc68`, `RaceLink_Node_v5_s3_eth` (Ethernet /
+W5500 node), and `RaceLink_Node_v6_s3_heltec_wpaper` (Heltec Wireless
+Paper startblock, device type 51).
 
 ### `cfg.json`
 
