@@ -329,8 +329,8 @@ but it drives both the host UX and the read-back support:
 | `0x0F` | Clear all overrides | Method (destructive — "Reset to RaceLink defaults") | — |
 | `0x80` | Forget master MAC | Method (destructive) | — |
 | `0x81` | Reboot node | Method (destructive) | — |
-| `0x8C` | STARTBLOCK number of slots (DEV_TYPE 50) | Property | `OPC_GET_CONFIG` |
-| `0x8D` | STARTBLOCK first slot (DEV_TYPE 50) | Property | `OPC_GET_CONFIG` |
+| `0x8C` | STARTBLOCK number of slots (DEV_TYPE 50/51) | Property | `OPC_GET_CONFIG` |
+| `0x8D` | STARTBLOCK first slot (DEV_TYPE 50/51) | Property | `OPC_GET_CONFIG` |
 
 #### Identity / wireless config (0x01..0x04)
 
@@ -364,8 +364,8 @@ distinction.
 | Option | Hex | Wire | Meaning |
 |---|---:|---|---|
 | Reboot node | `0x81` | `data0`: 1 to reboot | Sets `doReboot = true`; reboot happens in main loop. |
-| Number of slots (DEV_TYPE=50 only) | `0x8C` | `data0`: 1–8 | ePaper layout slot count. |
-| First slot (DEV_TYPE=50 only) | `0x8D` | `data0`: 1–8 | ePaper layout starting slot. |
+| Number of slots (startblock, DEV_TYPE 50/51) | `0x8C` | `data0`: 1–8 | ePaper layout slot count. |
+| First slot (startblock, DEV_TYPE 50/51) | `0x8D` | `data0`: 1–8 | ePaper layout starting slot. |
 
 Unknown option codes hit the `else` branch silently (no NACK) — the
 ACK was already sent. Senders should not rely on unknown-option

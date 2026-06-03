@@ -120,6 +120,19 @@ dialog](firmware-updates.md#wled-presets).
 Sends a starting-block function (`fn_key`) to the targeted
 starting-block group(s).
 
+When the target is a **group**, the host streams the pilot-slot data
+efficiently: it reads each startblock device's *number of slots* / *first
+slot* config (the `0x8C` / `0x8D` properties), works out which of the
+eight slots the group's devices actually cover, and broadcasts **only
+those slots** — one `OPC_STREAM` packet per covered slot, reaching every
+device that shows it. A group with no startblock device streams nothing.
+ACKs are awaited only from the **online** startblock devices that cover a
+slot, so a plain WLED node in the same group, an offline member, or a
+device that doesn't cover the slot never burns the retry budget (a single
+offline member used to stretch a ~1 s update into ~30 s of dead retries).
+Both startblock node boards — the v3 startblock and the Heltec Wireless
+Paper (device types 50 and 51) — are addressed the same way.
+
 ### SYNC
 
 ![SYNC action — "No parameters — this action only fires the SYNC trigger"](../assets/screenshots/scene_action_sync.png)

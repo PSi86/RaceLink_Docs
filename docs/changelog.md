@@ -16,23 +16,150 @@ release is grouped into **Added** / **Changed** / **Fixed** /
 
 ## Unreleased — Ethernet networks: device firmware + full opcode parity (Draft)
 
-!!! warning "Draft — unreleased, hardware bring-up pending"
-    Fold this block into a dated release once the W5500 firmware is
-    validated on real hardware. See
+!!! warning "Draft — unreleased, on-device bring-up in progress"
+    The core flows — discovery, status, preset and group assignment — are
+    verified on a real W5500 node; broader on-device validation (full
+    control / config / sync / stream, the DHCP lease, broadcast RX, reset
+    timing) is ongoing. Fold this block into a dated release once that
+    bring-up is signed off. See
     [Ethernet networks](RaceLink_Host/ethernet-networks.md).
 
 ### Added
 - **`RaceLink_Ethernet` device firmware.** An Ethernet build of the
   RaceLink_WLED usermod (`-D RACELINK_ETH`) for an ESP32-S3 + Wiznet
   W5500 module: a self-contained W5500 SPI/UDP driver, non-blocking DHCP
-  with a static-IP fallback, an Ethernet web-UI panel (link / IP / pin
-  map), and the `RaceLink_Node_v5_s3_eth` build target (device type 13).
-  Compile-verified; on-device validation still pending.
+  with a static-IP fallback, an Ethernet web-UI panel (link / IP), and
+  the `RaceLink_Node_v5_s3_eth` build target (device type 13). The core
+  flows are verified on real W5500 hardware; broader on-device validation
+  is ongoing.
 - **Full opcode parity over Ethernet.** The host's `EthernetTransport`
   now sends the complete M2N set — control, config / get-config, sync,
   offset, indicate, set-group and streaming — in addition to discovery /
   status / preset. The firmware's transport-agnostic dispatch handles
-  every opcode regardless of medium.
+  every opcode regardless of medium. The stdlib **mock node**
+  (`scripts/mock_ethernet_node.py`) answers the full set too, so the
+  host's loopback end-to-end tests cover every opcode without hardware.
+- **Host-driven autosync for Ethernet networks.** An Ethernet network
+  has no gateway to emit the periodic `OPC_SYNC` that keeps node
+  timebases aligned, so the host drives it — one timebase-only `OPC_SYNC`
+  broadcast per attached Ethernet network every **30 s** (configurable
+  via `rl_eth_autosync_interval_s`). RF networks are left to their
+  gateways; the loop is a no-op on RF-only deployments.
+- **Runtime-configurable W5500 SPI pins.** The Ethernet build's W5500
+  pins (SCLK / MOSI / MISO / CS / RST / INT) are now editable in WLED's
+  **Config → Usermod Settings → RaceLink** UI, exactly like the LoRa
+  radio pins on RF builds. The `-D RACELINK_ETH_*` build flags become
+  per-target defaults; a saved change reboots to re-init Ethernet on the
+  new pins. Pins are reserved through WLED's PinManager, so a conflict
+  with an LED-bus pin fails loudly at init.
+
+### Changed
+- **DHCP lease renewal is non-blocking.** The W5500 driver tracks the
+  lease (option 51) and rebinds at ~85 % of its lifetime via the existing
+  non-blocking state machine; a failed renewal keeps the current lease IP
+  instead of dropping to the static fallback (which is reserved for
+  initial-acquisition failure). The Ethernet link state is now read live
+  in the info panel instead of being polled every 500 ms.
+- **The WLED Ethernet info panel** shows the live link / IP and UDP port;
+  the redundant read-only W5500 pin-map row was dropped (the pins now live
+  in the usermod settings).
+
+### Fixed
+- **Ethernet link status showed "no link" alongside a valid DHCP IP.**
+  The link flag was read once right after reset, before auto-negotiation
+  finished. It now refreshes from the PHY register so the info line
+  reflects the real link state.
+
+### Wire protocol
+Unchanged. The Ethernet firmware reuses `racelink_proto.h` byte-for-byte,
+so there is no Ethernet-specific protocol version. On `RACELINK_ETH`
+builds the LoRa-only `OPC_RF_CONFIG` / `OPC_GET_RF_CONFIG` now reject with
+`ACK_BAD_TYPE` instead of persisting a meaningless PHY config and
+rebooting (the host's `EthernetTransport` never sends them).
+
+## 2026-06-03 — Startblock group streaming + multi-gateway discovery/IDENTIFY routing + Heltec Wireless Paper
+
+Three threads landed together: the starting-block scene action now
+streams slot data efficiently to a whole group, multi-gateway hosts route
+discovery and auto-restore to the gateway that can actually reach a
+device, and a new e-paper node board joins the lineup.
+
+### Added
+
+* **Heltec Wireless Paper node board** —
+  `RaceLink_Node_v6_s3_heltec_wpaper`, device type **51**
+  (`NODE_WLED_STARTBLOCK_HWP`). An ESP32-S3 + SX1262 LoRa board with a
+  built-in 2.13″ 250×122 e-paper panel, built as a **starting-block**
+  node — it shares the v3 startblock's pilot-slot / e-paper feature set
+  (the `RACELINK_STARTBLOCK` feature now covers device types 50 **and**
+  51). The GxEPD2 panel class is compile-time selectable
+  (`RACELINK_EPAPER_PANEL_E0213A367` / `_FC1` / default `GDEY037T03`)
+  because Heltec ships this board with two different panels; a Vext
+  (active-low) e-ink power rail is enabled before the display inits.
+* **`RaceLink_Node_v5_s3_eth`** (the Ethernet node) and the new Heltec
+  profile are both registered as shipping build profiles. See
+  [WLED build profiles](RaceLink_WLED/README.md#supported-hardware-profiles).
+
+### Changed
+
+* **Startblock Control streams only the slots a group actually covers.**
+  The scene [Startblock Control](RaceLink_Host/scene-authoring.md#startblock-control)
+  action used to push all eight pilot slots to a whole group regardless
+  of how many startblock devices were present or which slots they showed.
+  It now reads each device's *number of slots* / *first slot* config,
+  computes the covered slot set, and broadcasts only those slots — one
+  packet per covered slot, reaching every device that shows it. A group
+  with no startblock device streams nothing instead of fanning out eight
+  frames.
+* **Stream ACKs are only awaited from the devices that should answer.**
+  A broadcast `OPC_STREAM` to a group now scopes its expected-ACK set to
+  the **online** startblock devices that cover the slot; a plain WLED node
+  sharing the group, an offline member, or a device that doesn't cover the
+  slot is never awaited and can't burn the retry budget. Previously a
+  single offline member could turn a ~1 s startblock update into ~30 s of
+  dead retransmits. When no expected device is online the broadcast still
+  fires once.
+* **A new or emptied group stays network-agnostic until its first
+  member.** Groups no longer carry a network until a device joins them —
+  the first member sets the group's network (RF or Ethernet). This is
+  what lets a discovered Ethernet device be dropped into a fresh group
+  (see [Ethernet networks](RaceLink_Host/ethernet-networks.md#isolation-between-kinds)).
+* **Scene editor group picker shows network badges.** The *Select target
+  groups* dialog now carries the same RF / Ethernet network badge the
+  devices page and sidebar show; static and unbound groups stay
+  badge-less. See
+  [Multi-Network §Network badges](RaceLink_Host/multi-network.md#network-badges).
+
+### Fixed
+
+* **Multi-gateway: a device is bound to the gateway that hears it.** On a
+  host with two or more gateways an RF-discovered device never had a
+  `network_id` stamped, so every unicast to it fell back to the first
+  gateway — a node that IDENTIFYed on gateway B had its auto-restore
+  `SET_GROUP` sent on gateway A, never heard it, and so was never assigned
+  a group or learned its master. The IDENTIFY handler now binds an
+  *unbound* device to the network of the gateway that just heard it (it
+  never overrides an existing binding) and reconciles that device's group
+  to the same network, so group-targeted scene sends route correctly too.
+* **Discovery reaches every gateway.** *Discover* now broadcasts
+  `OPC_DEVICES` across **every** attached transport, not just the first,
+  so devices on a second gateway show up. Freshly discovered devices land
+  in the group the operator created for them rather than whatever was
+  selected in the sidebar.
+* **A child action's "broadcast" honours its container's scope.** A
+  broadcast child inside an `offset_group` container used to fan out to
+  every network the scene touched; it now resolves to the parent
+  container's networks only. A top-level broadcast keeps its fleet-wide
+  meaning.
+
+### Wire protocol
+
+`PROTO_VER_MAJOR/MINOR` unchanged. `NODE_WLED_STARTBLOCK_HWP` (device
+type `51`) is an additive enum value; the startblock config properties
+(`0x8C` slot count / `0x8D` first slot) now apply to device types **50
+and 51**.
+
+---
 
 ## 2026-05-27 — Network-move end-to-end + parallel multi-gateway status
 

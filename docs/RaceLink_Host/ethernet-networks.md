@@ -119,17 +119,25 @@ medium changes.
   (`racelink_w5500_udp.h`) — no external Ethernet library, because the
   pinned WLED core (Tasmota Arduino-ESP32 2.0.18) has no usable W5500
   path. Default SPI pins: MISO 12, MOSI 11, SCLK 13, CS 14, RST 9, INT 10.
+  Like the LoRa radio pins, these are **runtime-configurable** in
+  **Config → Usermod Settings → RaceLink** — the build flags are just
+  per-target defaults, and the pins are reserved through WLED's PinManager
+  so a clash with an LED-bus pin fails loudly at init. A saved pin change
+  reboots to re-init Ethernet.
 * **Addressing.** The node listens for UDP on port **5078** and replies
   to the host on **5079** (learned from the inbound datagram's source).
   Its identity is the EFUSE MAC last-3, exactly like a LoRa node.
 * **IP config.** **DHCP by default** (non-blocking — the node keeps
-  serving WLED while it acquires a lease) with a build-time **static-IP
-  fallback**; set `-D RACELINK_ETH_DHCP=0` to force static.
+  serving WLED while it acquires a lease, and renews the lease in the
+  background at ~85 % of its lifetime, keeping the current IP on a failed
+  renewal) with a build-time **static-IP fallback**; set
+  `-D RACELINK_ETH_DHCP=0` to force static.
 
 The firmware reuses `racelink_proto.h` unchanged, so the wire opcodes are
 identical to RF — there is no Ethernet-specific protocol version. The
-WLED web UI shows the Ethernet link/IP and W5500 pin map in place of the
-LoRa radio-status and RF-config fields.
+WLED web UI shows the live Ethernet link / IP and UDP port in place of
+the LoRa radio-status and RF-config fields (the W5500 pin map now lives in
+the usermod settings rather than a read-only info row).
 
 ## Testing without hardware (mock node)
 
@@ -161,10 +169,12 @@ drive every one of these over loopback UDP against this mock.
   `handlePacket` is transport-agnostic, the host's `EthernetTransport`
   sends the full set, and the stdlib mock node answers it (so the host's
   loopback end-to-end tests cover every opcode).
-* **No runtime Ethernet config.** UDP ports, DHCP-vs-static and the W5500
-  SPI pins are compile-time build flags (DHCP on by default); a runtime
-  "ETH config" opcode pair — the Ethernet equivalent of `OPC_RF_CONFIG` —
-  is deferred.
+* **No runtime Ethernet *network* config.** The W5500 SPI pins are
+  runtime-configurable in the usermod settings, but the UDP ports and
+  DHCP-vs-static choice remain compile-time build flags (DHCP on by
+  default); a runtime "ETH config" opcode pair — the Ethernet equivalent
+  of `OPC_RF_CONFIG` — is deferred. (`OPC_RF_CONFIG` itself is rejected on
+  an Ethernet build, since it tunes a LoRa PHY that isn't there.)
 * **One Ethernet network per host interface.** Multiple logical
   Ethernet networks on the same NIC (VLAN / multicast group) are a
   later option; the routing model already allows for it.
